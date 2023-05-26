@@ -27,6 +27,7 @@
 /* List of processes in THREAD_READY state, that is, processes
    that are ready to run but not actually running. */
 static struct list ready_list;
+static struct list sleep_list;
 
 /* Idle thread. */
 static struct thread *idle_thread;
@@ -48,6 +49,7 @@ static long long user_ticks;    /* # of timer ticks in user programs. */
 /* Scheduling. */
 #define TIME_SLICE 4            /* # of timer ticks to give each thread. */
 static unsigned thread_ticks;   /* # of timer ticks since last yield. */
+static int64_t sleep_ticks = INT64_MAX;
 
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.
@@ -62,6 +64,7 @@ static void init_thread (struct thread *, const char *name, int priority);
 static void do_schedule(int status);
 static void schedule (void);
 static tid_t allocate_tid (void);
+
 
 /* Returns true if T appears to point to a valid thread. */
 #define is_thread(t) ((t) != NULL && (t)->magic == THREAD_MAGIC)
@@ -108,6 +111,7 @@ thread_init (void) {
 	/* Init the globla thread context */
 	lock_init (&tid_lock);
 	list_init (&ready_list);
+	list_init (&sleep_list);
 	list_init (&destruction_req);
 
 	/* Set up a thread structure for the running thread. */
@@ -152,6 +156,56 @@ thread_tick (void) {
 	/* Enforce preemption. */
 	if (++thread_ticks >= TIME_SLICE)
 		intr_yield_on_return ();
+}
+
+void 
+thread_sleep(int64_t ticks){
+	struct thread *curr = thread_current();
+	enum intr_level old_level;
+
+	old_level = intr_disable ();
+	if(curr != idle_thread){
+		curr->wakeup_tick = ticks;
+		curr->status = THREAD_BLOCKED;
+		if(ticks < sleep_ticks){
+			sleep_ticks =ticks;
+		}
+		list_push_back (&sleep_list, &curr->elem);
+	}
+	schedule();
+	intr_set_level (old_level);
+}
+
+void
+thread_wake_up(int64_t ticks){
+	struct list_elem *search_elem = list_begin(&sleep_list);
+	enum intr_level old_level;
+
+	old_level = intr_disable ();
+	sleep_ticks = INT64_MAX;
+	while(search_elem != list_end(&sleep_list)){
+		struct thread* sleeping_thread = list_entry(search_elem, struct thread, elem);
+		if(sleeping_thread->wakeup_tick < ticks){
+			search_elem = list_remove(search_elem);
+			sleeping_thread->status = THREAD_READY;
+			list_push_back (&ready_list, &sleeping_thread->elem);
+		}else{
+			if(sleeping_thread-> wakeup_tick < sleep_ticks){
+				sleep_ticks = sleeping_thread->wakeup_tick;
+			}
+			search_elem = list_next(search_elem);
+		}
+	}
+	intr_set_level (old_level);
+}
+
+int64_t
+get_sleep_ticks (void) {
+	enum intr_level old_level = intr_disable ();
+	int64_t t = sleep_ticks;
+	intr_set_level (old_level);
+	barrier ();
+	return t;
 }
 
 /* Prints thread statistics. */
