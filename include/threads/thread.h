@@ -91,9 +91,14 @@ struct thread {
 	enum thread_status status;          /* Thread state. */
 	char name[16];                      /* Name (for debugging purposes). */
 	int priority;                       /* Priority. */
-	int64_t wakeup_tick;
+	int original_priority;
+	struct list donations;
+	struct lock* wait_on_lock;			
+	int64_t wakeup_tick;				/* Wake-up timer*/
 	/* Shared between thread.c and synch.c. */
 	struct list_elem elem;              /* List element. */
+	struct list_elem d_elem;            /* Donation List element. */
+
 
 #ifdef USERPROG
 	/* Owned by userprog/process.c. */
@@ -127,6 +132,7 @@ void thread_print_stats (void);
 
 typedef void thread_func (void *aux);
 tid_t thread_create (const char *name, int priority, thread_func *, void *);
+bool cmp_priority(struct list_elem* , struct list_elem* , void*);
 
 void thread_block (void);
 void thread_unblock (struct thread *);
@@ -140,6 +146,9 @@ void thread_yield (void);
 
 int thread_get_priority (void);
 void thread_set_priority (int);
+void thread_donate_priority(struct thread*);
+void thread_donate_free(struct thread*, struct thread*);
+void thread_wait_on_lock(struct lock *);
 
 int thread_get_nice (void);
 void thread_set_nice (int);

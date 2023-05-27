@@ -163,12 +163,13 @@ thread_sleep(int64_t ticks){
 	struct thread *curr = thread_current();
 	enum intr_level old_level;
 
+	
 	old_level = intr_disable ();
 	if(curr != idle_thread){
 		curr->wakeup_tick = ticks;
 		curr->status = THREAD_BLOCKED;
 		if(ticks < sleep_ticks){
-			sleep_ticks =ticks;
+			sleep_ticks = ticks;
 		}
 		list_push_back (&sleep_list, &curr->elem);
 	}
@@ -180,15 +181,16 @@ void
 thread_wake_up(int64_t ticks){
 	struct list_elem *search_elem = list_begin(&sleep_list);
 	enum intr_level old_level;
-
+	
 	old_level = intr_disable ();
 	sleep_ticks = INT64_MAX;
 	while(search_elem != list_end(&sleep_list)){
 		struct thread* sleeping_thread = list_entry(search_elem, struct thread, elem);
-		if(sleeping_thread->wakeup_tick < ticks){
+		
+		if(sleeping_thread->wakeup_tick <= ticks){
 			search_elem = list_remove(search_elem);
-			sleeping_thread->status = THREAD_READY;
-			list_push_back (&ready_list, &sleeping_thread->elem);
+			thread_unblock(sleeping_thread);
+			// printf("%lld\n", sleeping_thread ->wakeup_tick);
 		}else{
 			if(sleeping_thread-> wakeup_tick < sleep_ticks){
 				sleep_ticks = sleeping_thread->wakeup_tick;
@@ -278,6 +280,12 @@ thread_block (void) {
 	schedule ();
 }
 
+bool
+cmp_priority(struct list_elem* a, struct list_elem* b, void* aux){
+	struct thread* thread_a = list_entry(a, struct thread, elem);
+	struct thread* thread_b = list_entry(b, struct thread, elem);
+	return thread_a->priority > thread_b->priority;
+}
 /* Transitions a blocked thread T to the ready-to-run state.
    This is an error if T is not blocked.  (Use thread_yield() to
    make the running thread ready.)
@@ -294,10 +302,13 @@ thread_unblock (struct thread *t) {
 
 	old_level = intr_disable ();
 	ASSERT (t->status == THREAD_BLOCKED);
-	list_push_back (&ready_list, &t->elem);
+	// list_push_back (&ready_list, &t->elem);
+	list_insert_ordered(&ready_list, &t->elem, cmp_priority ,NULL);
 	t->status = THREAD_READY;
 	intr_set_level (old_level);
+	if(list_begin(&ready_list) == t) thread_yield();
 }
+
 
 /* Returns the name of the running thread. */
 const char *
@@ -357,15 +368,61 @@ thread_yield (void) {
 
 	old_level = intr_disable ();
 	if (curr != idle_thread)
-		list_push_back (&ready_list, &curr->elem);
+		list_insert_ordered(&ready_list, &curr->elem, cmp_priority, NULL);
 	do_schedule (THREAD_READY);
+	intr_set_level (old_level);
+}
+
+void
+thread_wait_on_lock(struct lock *lock){
+	thread_current()->wait_on_lock = lock;
+}
+
+void
+thread_donate_priority(struct thread* holder){
+	enum intr_level old_level;
+	struct thread* donator = list_entry(list_front(&holder->donations), struct thread, d_elem);
+	struct thread* nested_holder;
+
+	old_level = intr_disable ();
+	
+	if(holder->original_priority < donator->priority){
+		holder->priority = donator->priority;
+	}else{
+		holder->priority = holder->original_priority;
+	}
+	if(holder->wait_on_lock){
+		nested_holder = holder->wait_on_lock->holder;
+		list_sort(&nested_holder->donations,cmp_priority, NULL);
+		thread_donate_priority(nested_holder);
+	}
+	list_sort(&holder->elem, cmp_priority, NULL);
+
+	intr_set_level (old_level);
+	// thread_yield();
+}
+
+void
+thread_donate_free(struct thread* holder, struct thread* donator){
+	enum intr_level old_level;
+	old_level = intr_disable ();
+	list_remove(&donator->d_elem); 
+	if(list_empty(&holder->donations))
+		holder->priority = holder->original_priority;
+	else{
+		thread_donate_priority(holder);
+	}
 	intr_set_level (old_level);
 }
 
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void
 thread_set_priority (int new_priority) {
+	//lock이 걸려있는 도중에 priority변경 요청이 들어가면 어쩌지?
 	thread_current ()->priority = new_priority;
+	thread_current ()->original_priority = new_priority;
+	// 비효율적인 방식일 수 있지만 가장 간단하게 구현 가능해서 이런 식으로 구현했습니다.
+	thread_yield();
 }
 
 /* Returns the current thread's priority. */
@@ -461,7 +518,10 @@ init_thread (struct thread *t, const char *name, int priority) {
 	t->status = THREAD_BLOCKED;
 	strlcpy (t->name, name, sizeof t->name);
 	t->tf.rsp = (uint64_t) t + PGSIZE - sizeof (void *);
+	t->wait_on_lock = NULL;
+	list_init(&t->donations);
 	t->priority = priority;
+	t->original_priority = priority;
 	t->magic = THREAD_MAGIC;
 }
 
