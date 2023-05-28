@@ -24,10 +24,6 @@
    Do not modify this value. */
 #define THREAD_BASIC 0xd42df210
 
-/* List of processes in THREAD_READY state, that is, processes
-   that are ready to run but not actually running. */
-static struct list ready_list;
-
 /* Idle thread. */
 static struct thread *idle_thread;
 
@@ -108,6 +104,7 @@ thread_init (void) {
 	/* Init the globla thread context */
 	lock_init (&tid_lock);
 	list_init (&ready_list);
+	list_init (&sleep_list);
 	list_init (&destruction_req);
 
 	/* Set up a thread structure for the running thread. */
@@ -245,6 +242,22 @@ thread_unblock (struct thread *t) {
 	intr_set_level (old_level);
 }
 
+void 
+thread_sleep (int64_t ticks) {
+	struct thread *curr = thread_current();
+
+	if (curr != idle_thread) {
+		enum intr_level old_level = intr_disable(); // 인터럽트 비활성화
+
+		curr -> status = THREAD_BLOCKED;
+		curr -> wakeup_tick = ticks;
+
+		schedule();
+
+		intr_set_level(old_level); // 인터럽트 상태 복원
+	}
+}
+
 /* Returns the name of the running thread. */
 const char *
 thread_name (void) {
@@ -296,7 +309,7 @@ thread_exit (void) {
    may be scheduled again immediately at the scheduler's whim. */
 void
 thread_yield (void) {
-	struct thread *curr = thread_current ();
+	struct thread *curr = thread_current();
 	enum intr_level old_level;
 
 	ASSERT (!intr_context ());

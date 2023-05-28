@@ -92,9 +92,9 @@ void
 timer_sleep (int64_t ticks) {
 	int64_t start = timer_ticks ();
 
-	ASSERT (intr_get_level () == INTR_ON);
-	while (timer_elapsed (start) < ticks)
-		thread_yield ();
+	if (timer_elapsed(start) < ticks) {
+		thread_sleep(start + ticks);
+	}
 }
 
 /* Suspends execution for approximately MS milliseconds. */
@@ -120,12 +120,29 @@ void
 timer_print_stats (void) {
 	printf ("Timer: %"PRId64" ticks\n", timer_ticks ());
 }
-
+
 /* Timer interrupt handler. */
 static void
 timer_interrupt (struct intr_frame *args UNUSED) {
+	struct list_elem *curr_elem = list_begin(&sleep_list);
+	struct list_elem *next_elem;
+
 	ticks++;
 	thread_tick ();
+
+	while (curr_elem != list_end(&sleep_list)) {
+		struct thread *t = list_entry(curr_elem, struct thread, elem);
+		next_elem = list_next(curr_elem);
+
+		if (ticks >= t -> wakeup_tick) {
+			// find any threads to wake up
+			// move them to the ready list if necessary
+			list_remove(curr_elem);
+			thread_unblock(t);
+		}
+
+		curr_elem = next_elem;
+	}
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer
