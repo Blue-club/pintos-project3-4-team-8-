@@ -9,10 +9,6 @@
 #include "vm/vm.h"
 #endif
 
-
-static struct list ready_list;
-static struct list sleep_list;
-
 /* States in a thread's life cycle. */
 enum thread_status {
 	THREAD_RUNNING,     /* Running thread. */
@@ -132,6 +128,7 @@ void thread_block (void);
 void thread_unblock (struct thread *);
 
 void thread_sleep (int64_t ticks);
+void thread_wakeup (int64_t ticks);
 
 struct thread *thread_current (void);
 tid_t thread_tid (void);

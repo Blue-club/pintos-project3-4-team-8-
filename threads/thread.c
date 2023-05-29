@@ -15,6 +15,9 @@
 #include "userprog/process.h"
 #endif
 
+static struct list ready_list;
+static struct list sleep_list;
+
 /* Random value for struct thread's `magic' member.
    Used to detect stack overflow.  See the big comment at the top
    of thread.h for details. */
@@ -242,20 +245,46 @@ thread_unblock (struct thread *t) {
 	intr_set_level (old_level);
 }
 
-void 
-thread_sleep (int64_t ticks) {
-	struct thread *curr = thread_current();
+void
+thread_sleep(int64_t ticks) {
+    struct thread *curr = thread_current();
 
-	if (curr != idle_thread) {
-		enum intr_level old_level = intr_disable(); // 인터럽트 비활성화
+    if (curr != idle_thread) {
+        enum intr_level old_level = intr_disable(); // 인터럽트 비활성화
 
+        curr -> wakeup_tick = ticks;
 		curr -> status = THREAD_BLOCKED;
-		curr -> wakeup_tick = ticks;
+		list_push_back(&sleep_list, &curr->elem); // sleep_list 추가
 
-		schedule();
+        schedule(); // 스케줄링 수행
+		
+        intr_set_level(old_level); // 인터럽트 상태 복원
+    }
+}
 
-		intr_set_level(old_level); // 인터럽트 상태 복원
-	}
+void
+thread_wakeup(int64_t ticks) {
+    struct list_elem *curr_elem = list_begin(&sleep_list);
+    struct list_elem *next_elem;
+
+	enum intr_level old_level = intr_disable(); // 인터럽트 비활성화
+
+    while (curr_elem != list_end(&sleep_list)) {
+        struct thread *t = list_entry(curr_elem, struct thread, elem);
+        next_elem = list_next(curr_elem);
+
+        if (t->wakeup_tick <= ticks) {
+            // Find any threads to wake up
+            // Move them to the ready list if necessary
+            list_remove(curr_elem);
+			t->status = THREAD_READY;
+			list_push_back(&ready_list, &t->elem);
+        }
+
+        curr_elem = next_elem;
+    }
+
+	intr_set_level(old_level); // 인터럽트 상태 복원
 }
 
 /* Returns the name of the running thread. */
