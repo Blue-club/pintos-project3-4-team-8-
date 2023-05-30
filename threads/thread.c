@@ -4,6 +4,7 @@
 #include <random.h>
 #include <stdio.h>
 #include <string.h>
+#include <debug.h>
 #include "threads/flags.h"
 #include "threads/interrupt.h"
 #include "threads/intr-stubs.h"
@@ -152,6 +153,10 @@ thread_tick (void) {
 #endif
 	else
 		kernel_ticks++;
+	
+
+	// printf("priority current: %lld\n",  t->priority);
+	// printf("lock: %p\n",  t->wait_on_lock);
 
 	/* Enforce preemption. */
 	if (++thread_ticks >= TIME_SLICE)
@@ -190,7 +195,6 @@ thread_wake_up(int64_t ticks){
 		if(sleeping_thread->wakeup_tick <= ticks){
 			search_elem = list_remove(search_elem);
 			thread_unblock(sleeping_thread);
-			// printf("%lld\n", sleeping_thread ->wakeup_tick);
 		}else{
 			if(sleeping_thread-> wakeup_tick < sleep_ticks){
 				sleep_ticks = sleeping_thread->wakeup_tick;
@@ -263,6 +267,8 @@ thread_create (const char *name, int priority,
 	/* Add to run queue. */
 	thread_unblock (t);
 
+	thread_preempt();
+
 	return tid;
 }
 
@@ -302,11 +308,9 @@ thread_unblock (struct thread *t) {
 
 	old_level = intr_disable ();
 	ASSERT (t->status == THREAD_BLOCKED);
-	// list_push_back (&ready_list, &t->elem);
 	list_insert_ordered(&ready_list, &t->elem, cmp_priority ,NULL);
 	t->status = THREAD_READY;
 	intr_set_level (old_level);
-	if(list_begin(&ready_list) == t) thread_yield();
 }
 
 
@@ -332,6 +336,14 @@ thread_current (void) {
 	ASSERT (t->status == THREAD_RUNNING);
 
 	return t;
+}
+
+void
+thread_preempt(){
+	if(list_empty(&ready_list))
+		return;
+	if(thread_current()->priority < list_entry(list_front(&ready_list), struct thread, elem)->priority)
+		thread_yield();
 }
 
 /* Returns the running thread's tid. */
@@ -367,6 +379,7 @@ thread_yield (void) {
 	ASSERT (!intr_context ());
 
 	old_level = intr_disable ();
+
 	if (curr != idle_thread)
 		list_insert_ordered(&ready_list, &curr->elem, cmp_priority, NULL);
 	do_schedule (THREAD_READY);
@@ -381,47 +394,55 @@ thread_wait_on_lock(struct lock *lock){
 void
 thread_donate_priority(struct thread* holder){
 	enum intr_level old_level;
-	struct thread* donator = list_entry(list_front(&holder->donations), struct thread, d_elem);
-	struct thread* nested_holder;
+	struct thread *nested_holder, *donator;
 
 	old_level = intr_disable ();
-	
-	if(holder->original_priority < donator->priority){
+	donator = get_max_priority_donation(holder);
+	if(holder->priority < donator->priority){
 		holder->priority = donator->priority;
-	}else{
-		holder->priority = holder->original_priority;
 	}
-	if(holder->wait_on_lock){
+	if(holder->wait_on_lock != NULL){
 		nested_holder = holder->wait_on_lock->holder;
-		list_sort(&nested_holder->donations,cmp_priority, NULL);
+		list_sort(&nested_holder->donations, cmp_priority, NULL);
 		thread_donate_priority(nested_holder);
 	}
-	list_sort(&holder->elem, cmp_priority, NULL);
-
 	intr_set_level (old_level);
-	// thread_yield();
 }
 
 void
-thread_donate_free(struct thread* holder, struct thread* donator){
-	enum intr_level old_level;
-	old_level = intr_disable ();
-	list_remove(&donator->d_elem); 
-	if(list_empty(&holder->donations))
-		holder->priority = holder->original_priority;
-	else{
-		thread_donate_priority(holder);
+thread_donate_free(struct lock *lock){
+	enum intr_level old_level = intr_disable ();
+	struct thread * holder = thread_current();
+	struct list_elem *curr_elem = list_begin(&holder->donations); 
+	struct list_elem *next_elem ;
+	holder->priority = holder->original_priority;
+	while(curr_elem !=list_end(&holder->donations)){
+		next_elem = list_next(curr_elem);
+		if(list_entry(curr_elem, struct thread, d_elem)->wait_on_lock == lock)
+			list_remove(curr_elem);
+		curr_elem = next_elem;
 	}
+	if(!list_empty(&holder->donations))
+		thread_donate_priority(holder);
+	thread_yield();
 	intr_set_level (old_level);
+}
+
+struct thread*
+get_max_priority_donation(struct thread * holder){
+	ASSERT(!list_empty(&holder->donations));
+	return list_entry(list_front(&holder->donations), struct thread, d_elem);
 }
 
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void
 thread_set_priority (int new_priority) {
-	//lock이 걸려있는 도중에 priority변경 요청이 들어가면 어쩌지?
-	thread_current ()->priority = new_priority;
-	thread_current ()->original_priority = new_priority;
-	// 비효율적인 방식일 수 있지만 가장 간단하게 구현 가능해서 이런 식으로 구현했습니다.
+	struct thread* t = thread_current(); 
+	t->original_priority = new_priority;
+	if(!list_empty(&t->donations))
+		t->original_priority > get_max_priority_donation(t)? t->priority = t->original_priority: get_max_priority_donation(t)->priority;
+	else
+		t->priority = new_priority; 
 	thread_yield();
 }
 

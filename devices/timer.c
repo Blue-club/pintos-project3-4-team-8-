@@ -125,7 +125,6 @@ timer_print_stats (void) {
 static void
 timer_interrupt (struct intr_frame *args UNUSED) {
 	ticks++;
-	printf("check\n");
 	if(get_sleep_ticks() <= ticks){
 		thread_wake_up(ticks);
 	}
