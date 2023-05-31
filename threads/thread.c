@@ -424,7 +424,7 @@ thread_donate_free(struct lock *lock){
 	}
 	if(!list_empty(&holder->donations))
 		thread_donate_priority(holder);
-	thread_yield();
+	thread_preempt();
 	intr_set_level (old_level);
 }
 
@@ -440,10 +440,10 @@ thread_set_priority (int new_priority) {
 	struct thread* t = thread_current(); 
 	t->original_priority = new_priority;
 	if(!list_empty(&t->donations))
-		t->original_priority > get_max_priority_donation(t)? t->priority = t->original_priority: get_max_priority_donation(t)->priority;
+		t->original_priority > get_max_priority_donation(t)->priority? t->priority = t->original_priority: get_max_priority_donation(t)->priority;
 	else
 		t->priority = new_priority; 
-	thread_yield();
+	thread_preempt();
 }
 
 /* Returns the current thread's priority. */
