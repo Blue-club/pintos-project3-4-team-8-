@@ -336,15 +336,15 @@ load (const char *file_name, struct intr_frame *if_) {
 	int i;
 
 	// 최대 128바이트까지 인자 받을 수 있음.
-	char *argv[MAX_NUM_STR];
+	char *argv[MAX_STR_LEN];
 	char **save_ptr;
 	int argc = 0;
 
 	char *token = strtok_r(file_name, " ", &save_ptr);
 
 	while (token != NULL && argc < MAX_NUM_STR) {
-		argv[argc] = strlen(token);
-		strlcpy(argv[argc], token, MAX_STR_LEN);
+		argv[argc] = token;
+		// strlcpy(argv[argc], token, MAX_STR_LEN);
 		argc++;
 
 		token = strtok_r(NULL, " ", &save_ptr);
@@ -471,16 +471,11 @@ load (const char *file_name, struct intr_frame *if_) {
 
 	/* arguments passing */
 
-	// 스택 포인터를 8의 배수로 정렬
-	if(if_->rsp % 8 != 0) {
-		if_->rsp = (if_->rsp / 8 + 1) * 8;
-	}
-
 	// argv 인자들을 스택에 푸시
 	for(int i = argc - 1; i >= 0; i--) {
-		size_t arg_len = strlen(argv[i]);      // 널 문자 포한한 인자의 길이 계산.
-		if_->rsp -= arg_len;                   // 스택 포인터를 인자의 길이만큼 이동하여 공간을 확보.
-		memcpy(if_->rsp, argv[i], arg_len);    // 인자를 스택에 복사한다.
+		size_t arg_len = strlen(argv[i]) + 1;      // 널 문자 포한한 인자의 길이 계산.
+		// if_->rsp -= arg_len;                       // 스택 포인터를 인자의 길이만큼 이동하여 공간을 확보.
+		memcpy(if_->rsp, argv[i], arg_len);        // 인자를 스택에 복사한다.
 		argv[i] = (char *)if_->rsp;
 	}
 
@@ -502,7 +497,7 @@ load (const char *file_name, struct intr_frame *if_) {
 	if_->R.rdi = argc;
 	if_->R.rsi = if_->rsp + 8; 
 	
-	// 성공정으로 ELF 파일이 로드되었으므로 success 변수를 true로 설정한다.
+	// 성공적으로 ELF 파일이 로드되었으므로 success 변수를 true로 설정한다.
 	success = true;
 
 done:
