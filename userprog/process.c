@@ -185,7 +185,7 @@ process_exec (void *f_name) {
 	if (!success)
 		return -1;
 
-	hex_dump(USER_STACK, (const void*)USER_STACK, 128, true);
+	hex_dump(USER_STACK, USER_STACK, 128, true);
 
 	/* Start switched process. */
 	do_iret (&_if);
@@ -340,7 +340,11 @@ load (const char *file_name, struct intr_frame *if_) {
 	char **save_ptr;
 	int argc = 0;
 
-	char *token = strtok_r(file_name, " ", &save_ptr);
+	// 임시 변수에 복사하여 원래의 문자열을 보존
+	char temp[MAX_STR_LEN];
+	strlcpy(temp, file_name, sizeof(temp));
+
+	char *token = strtok_r(temp, " ", &save_ptr);
 
 	while (token != NULL && argc < MAX_NUM_STR) {
 		argv[argc] = token;
@@ -363,11 +367,11 @@ load (const char *file_name, struct intr_frame *if_) {
 	process_activate (thread_current ()); 
 
 	// 새롭게 실행 할 파일을 연다 (인자로 전달된 file_name으로..) 
-	file = filesys_open (argv[0]);
+	file = filesys_open (file_name);
 	
 	// 파일이 존재하지 않는다면 실패 메세지를 출력하고 함수를 종료한다.
 	if (file == NULL) {
-		printf ("load: %s: open failed\n", argv[0]);
+		printf ("load: %s: open failed\n", file_name);
 		goto done;
 	}
 
@@ -381,7 +385,7 @@ load (const char *file_name, struct intr_frame *if_) {
 			|| ehdr.e_phnum > 1024)                      // ELF 파일 프로그램 헤더의 개수 필드를 검사한다.
 	{
 		// 위 조건에 맞는 ELF 파일이 아닌 경우에 오류 출력 후 함수 종료.
-		printf ("load: %s: error loading executable\n", argv[0]);
+		printf ("load: %s: error loading executable\n", file_name);
 		goto done;
 	}
 
@@ -473,9 +477,9 @@ load (const char *file_name, struct intr_frame *if_) {
 
 	// argv 인자들을 스택에 푸시
 	for(int i = argc - 1; i >= 0; i--) {
-		size_t arg_len = strlen(argv[i]) + 1;      // 널 문자 포한한 인자의 길이 계산.
-		// if_->rsp -= arg_len;                       // 스택 포인터를 인자의 길이만큼 이동하여 공간을 확보.
-		memcpy(if_->rsp, argv[i], arg_len);        // 인자를 스택에 복사한다.
+		size_t arg_len = strlen(argv[i]) + 1;    // 널 문자 포한한 인자의 길이 계산.
+		if_->rsp -= arg_len;                     // 스택 포인터를 인자의 길이만큼 이동하여 공간을 확보.
+		memcpy(if_->rsp, argv[i], arg_len);      // 인자를 스택에 복사한다.
 		argv[i] = (char *)if_->rsp;
 	}
 
@@ -485,7 +489,7 @@ load (const char *file_name, struct intr_frame *if_) {
 	
 	// 주소 포인터들을 스택에 푸시
 	for (int i = argc - 1; i >= 0; i--) {
-		if_->rsp -= 8;  // 주소 포인터 크기만큼 스택 포인터 이동
+		if_->rsp -= 8;  				// 주소 포인터 크기만큼 스택 포인터 이동
 		memcpy(if_->rsp, &argv[i], 8);  // 주소 포인터를 스택에 저장
 	}
 
