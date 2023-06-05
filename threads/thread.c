@@ -15,9 +15,6 @@
 #include "userprog/process.h"
 #endif
 
-static struct list ready_list;
-static struct list sleep_list;
-
 /* Random value for struct thread's `magic' member.
    Used to detect stack overflow.  See the big comment at the top
    of thread.h for details. */
@@ -26,6 +23,10 @@ static struct list sleep_list;
 /* Random value for basic thread
    Do not modify this value. */
 #define THREAD_BASIC 0xd42df210
+
+
+struct list ready_list;
+struct list sleep_list;
 
 /* Idle thread. */
 static struct thread *idle_thread;
@@ -61,6 +62,7 @@ static void init_thread (struct thread *, const char *name, int priority);
 static void do_schedule(int status);
 static void schedule (void);
 static tid_t allocate_tid (void);
+
 
 /* Returns true if T appears to point to a valid thread. */
 #define is_thread(t) ((t) != NULL && (t)->magic == THREAD_MAGIC)
@@ -177,8 +179,7 @@ thread_print_stats (void) {
    PRIORITY, but no actual priority scheduling is implemented.
    Priority scheduling is the goal of Problem 1-3. */
 tid_t
-thread_create (const char *name, int priority,
-		thread_func *function, void *aux) {
+thread_create (const char *name, int priority, thread_func *function, void *aux) {
 	struct thread *t;
 	tid_t tid;
 
@@ -207,6 +208,24 @@ thread_create (const char *name, int priority,
 	/* Add to run queue. */
 	thread_unblock (t);
 
+	struct thread *curr = thread_current();
+
+	// 새롭게 생성할 스레드의 우선순위와 현재 running 중인 스레드의 우선순위 비교
+	if (priority > thread_get_priority()) {
+		// 현재 생성한 스레드의 우선순위가 더 크다면
+		enum intr_level old_level = intr_disable(); // 인터럽트 비활성화
+
+		// 실행중인 스레드 block 후 ready_list 푸시
+		// thread_block();
+		list_insert_ordered(&ready_list, &curr -> elem, cmp_priority, NULL);
+		curr -> status = THREAD_READY;
+
+		// 현재 생성한 스레드 running
+		schedule();
+		
+		intr_set_level (old_level);
+	}
+	
 	return tid;
 }
 
@@ -216,6 +235,7 @@ thread_create (const char *name, int priority,
    This function must be called with interrupts turned off.  It
    is usually a better idea to use one of the synchronization
    primitives in synch.h. */
+/* 현재 실행 중인 스레드를 block 상태로 변경한다. */
 void
 thread_block (void) {
 	ASSERT (!intr_context ());
@@ -240,7 +260,7 @@ thread_unblock (struct thread *t) {
 
 	old_level = intr_disable ();
 	ASSERT (t->status == THREAD_BLOCKED);
-	list_push_back (&ready_list, &t->elem);
+	list_insert_ordered(&ready_list, &t -> elem, cmp_priority, NULL);
 	t->status = THREAD_READY;
 	intr_set_level (old_level);
 }
@@ -345,18 +365,21 @@ thread_yield (void) {
 
 	old_level = intr_disable ();
 	if (curr != idle_thread)
-		list_push_back (&ready_list, &curr->elem);
+		list_insert_ordered(&ready_list, &curr -> elem, cmp_priority, NULL);
 	do_schedule (THREAD_READY);
 	intr_set_level (old_level);
 }
 
-/* Sets the current thread's priority to NEW_PRIORITY. */
+/* 현재 running 중인 스레드의 우선순위를 new_priority로 변경한다. */
 void
 thread_set_priority (int new_priority) {
-	thread_current ()->priority = new_priority;
+	thread_current () -> init_priority = new_priority;
+	// list_sort(&ready_list, cmp_priority, NULL);
+	refresh_priority();
+	thread_yield();
 }
 
-/* Returns the current thread's priority. */
+/* 현재 running 중인 스레드의 우선순위를 반환한다. */
 int
 thread_get_priority (void) {
 	return thread_current ()->priority;
@@ -451,6 +474,11 @@ init_thread (struct thread *t, const char *name, int priority) {
 	t->tf.rsp = (uint64_t) t + PGSIZE - sizeof (void *);
 	t->priority = priority;
 	t->magic = THREAD_MAGIC;
+
+		/* --- 자료구조 초기화 --- */
+	t->init_priority = priority;
+	t->wait_on_lock = NULL;
+	list_init(&t->donations);
 }
 
 /* Chooses and returns the next thread to be scheduled.  Should
@@ -629,4 +657,62 @@ allocate_tid (void) {
 	lock_release (&tid_lock);
 
 	return tid;
+}
+
+bool
+cmp_priority (struct list_elem *a, struct list_elem *b, void *aux UNUSED) {
+	struct thread *find_a = list_entry(a, struct thread, elem);
+	struct thread *find_b = list_entry(b, struct thread, elem);
+
+	return find_a -> priority > find_b -> priority;
+}
+
+void 
+donate_priority (void) {
+	int depth;
+    struct thread *cur = thread_current();
+    
+    for (depth =0; depth < 8; depth++) {
+    	if (!cur->wait_on_lock) // 기다리는 lock이 없다면 종료
+        	break;
+        struct thread *holder = cur->wait_on_lock->holder;
+        holder->priority = cur->priority;
+        cur = holder;
+    }
+}
+
+void 
+refresh_priority (void)
+{
+  struct thread *cur = thread_current ();
+
+  cur->priority = cur->init_priority;
+  
+  if (!list_empty (&cur->donations)) {
+    list_sort (&cur->donations, cmp_donate_priority, 0);
+
+    struct thread *front = list_entry (list_front (&cur->donations), struct thread, donation_elem);
+    if (front->priority > cur->priority)
+      cur->priority = front->priority;
+  }
+}
+
+void remove_with_lock (struct lock *lock)
+{
+  struct list_elem *e;
+  struct thread *cur = thread_current ();
+
+  for (e = list_begin (&cur->donations); e != list_end (&cur->donations); e = list_next (e)){
+    struct thread *t = list_entry (e, struct thread, donation_elem);
+    if (t->wait_on_lock == lock)
+      list_remove (&t->donation_elem);
+  }
+}
+
+bool
+cmp_donate_priority (struct list_elem *a, struct list_elem *b, void *aux UNUSED) {
+	struct thread *find_a = list_entry(a, struct thread, donation_elem);
+	struct thread *find_b = list_entry(b, struct thread, donation_elem);
+
+	return find_a -> priority > find_b -> priority;
 }
