@@ -92,6 +92,11 @@ struct thread {
 	int priority;                       /* Priority. */
 	int64_t wakeup_tick;
 
+	int init_priority;
+	struct lock *wait_on_lock;			/* Lock that it waits for */
+	struct list donations;				/* List of Donors */
+	struct list_elem donation_elem;
+
 	/* Shared between thread.c and synch.c. */
 	struct list_elem elem;              /* List element. */
 
@@ -109,10 +114,11 @@ struct thread {
 	unsigned magic;                     /* Detects stack overflow. */
 };
 
-
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.
    Controlled by kernel command-line option "-o mlfqs". */
+
+
 extern bool thread_mlfqs;
 
 void thread_init (void);
@@ -145,6 +151,19 @@ void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
+
+void refresh_priority (void);
+
+
 void do_iret (struct intr_frame *tf);
+
+void donate_priority (void);
+void remove_with_lock (struct lock *lock);
+
+bool
+cmp_priority (struct list_elem *a, struct list_elem *b, void *aux);
+
+bool
+cmp_donate_priority (struct list_elem *a, struct list_elem *b, void *aux);
 
 #endif /* threads/thread.h */

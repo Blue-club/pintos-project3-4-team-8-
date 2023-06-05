@@ -1,0 +1,18 @@
+{
+    "files.associations": {
+        "debug.h": "c",
+        "list.h": "c",
+        "flags.h": "c",
+        "stddef.h": "c",
+        "thread.h": "c",
+        "interrupt.h": "c",
+        "synch.h": "c",
+        "filesys.h": "c",
+        "string.h": "c",
+        "lib.h": "c",
+        "directory.h": "c",
+        "tss.h": "c",
+        "stdio.h": "c",
+        "stdlib.h": "c"
+    }
+}

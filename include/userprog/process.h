@@ -1,6 +1,9 @@
 #ifndef USERPROG_PROCESS_H
 #define USERPROG_PROCESS_H
 
+#define MAX_STR_LEN 128  // 각 문자열의 최대 길이
+#define MAX_NUM_STR 4   // 문자열 배열의 최대 개수
+
 #include "threads/thread.h"
 
 tid_t process_create_initd (const char *file_name);
