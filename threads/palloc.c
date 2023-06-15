@@ -12,19 +12,18 @@
 #include "threads/synch.h"
 #include "threads/vaddr.h"
 
-/* Page allocator.  Hands out memory in page-size (or
-   page-multiple) chunks.  See malloc.h for an allocator that
-   hands out smaller chunks.
-
-   System memory is divided into two "pools" called the kernel
-   and user pools.  The user pool is for user (virtual) memory
-   pages, the kernel pool for everything else.  The idea here is
-   that the kernel needs to have memory for its own operations
-   even if user processes are swapping like mad.
-
-   By default, half of system RAM is given to the kernel pool and
-   half to the user pool.  That should be huge overkill for the
-   kernel pool, but that's just fine for demonstration purposes. */
+/**
+ * 해당 주석은 페이지 할당기인 "Page allocator"에 대한 설명입니다. 
+ * 이 페이지 할당기는 페이지 크기 또는 페이지의 배수로 메모리를 할당해줍니다. 
+ * 더 작은 크기의 청크를 할당하는 할당기는 malloc.h에 정의되어 있습니다.
+ * 시스템 메모리는 "커널 풀"과 "유저 풀"이라고 불리는 두 개의 "풀"로 나뉘어집니다. 
+ * 유저 풀은 유저(가상) 메모리 페이지를 위한 것이고, 커널 풀은 그 외의 모든 것을 위한 것입니다. 
+ * 이 아이디어의 핵심은 유저 프로세스가 활발하게 스왑되더라도 
+ * 커널은 자체적으로 동작하기 위한 메모리가 필요하다는 것입니다.
+ * 기본적으로 시스템 RAM의 절반은 커널 풀에 할당되고, 나머지 절반은 유저 풀에 할당됩니다. 
+ * 이는 커널 풀에 대해서는 큰 여유 공간을 제공하지만, 데모 목적으로는 충분하다는 의도로 설정된 것입니다. 
+ * 즉, 커널 풀과 유저 풀에 대한 초기 메모리 할당 비율을 절반으로 설정하였습니다.
+*/
 
 /* A memory pool. */
 struct pool {
@@ -253,12 +252,13 @@ palloc_init (void) {
 	return ext_mem.end;
 }
 
-/* Obtains and returns a group of PAGE_CNT contiguous free pages.
-   If PAL_USER is set, the pages are obtained from the user pool,
-   otherwise from the kernel pool.  If PAL_ZERO is set in FLAGS,
-   then the pages are filled with zeros.  If too few pages are
-   available, returns a null pointer, unless PAL_ASSERT is set in
-   FLAGS, in which case the kernel panics. */
+/**
+ * 페이지 개수를 뜻하는 page_cnt만큼 연속된 빈 페이지를 얻고 반환한다.
+ * PAL_USER가 설정되어 있으면 페이지를 user pool에서 얻고, 그렇지 않으면 kernel pool에서 얻는다.
+ * 또한 FLAGS에 PAL_ZERO가 설정되어 있으면 페이지가 0으로 채워진다.
+ * 사용 가능한 페이지가 너무 적으면, PAL_ASSERT가 FLAGS에 설정되어 있지 않은 경우 널 포인터를 반환하고
+ * 설정되어 있는 경우 커널이 패닉 상태에 빠진다.
+*/
 void *
 palloc_get_multiple (enum palloc_flags flags, size_t page_cnt) {
 	struct pool *pool = flags & PAL_USER ? &user_pool : &kernel_pool;
@@ -281,6 +281,7 @@ palloc_get_multiple (enum palloc_flags flags, size_t page_cnt) {
 			PANIC ("palloc_get: out of pages");
 	}
 
+	// 할당한 페이지의 시작 주소를 반환한다.
 	return pages;
 }
 

@@ -61,7 +61,10 @@ err:
 	return false;
 }
 
-/* Find VA from spt and return page. On error, return NULL. */
+/**
+ * 인자로 주어진 spt에서 va에 해당하는 struct page를 찾는다.
+ * 실패할 경우 NULL을 반환한다.
+*/
 struct page *
 spt_find_page (struct supplemental_page_table *spt UNUSED, void *va UNUSED) {
 	struct page *page = NULL;
@@ -70,7 +73,10 @@ spt_find_page (struct supplemental_page_table *spt UNUSED, void *va UNUSED) {
 	return page;
 }
 
-/* Insert PAGE into spt with validation. */
+/**
+ * 인자로 주어진 spt에 struct page를 삽입한다. 
+ * 이 함수는 인자로 주어진 spt에 해당 가상 주소가 존재하는지 확인해야한다.
+*/
 bool
 spt_insert_page (struct supplemental_page_table *spt UNUSED,
 		struct page *page UNUSED) {
@@ -172,7 +178,11 @@ vm_do_claim_page (struct page *page) {
 	return swap_in (page, frame->kva);
 }
 
-/* Initialize new supplemental page table */
+/**
+ * supplemental page table을 초기화한다. 
+ * spt에 사용할 데이터 구조를 선택할 수 있다.
+ * 새로운 프로세스가 시작할 때(initd) 그리고 프로세스가 포크될 때(__do_fork) 호출된다.
+*/
 void
 supplemental_page_table_init (struct supplemental_page_table *spt UNUSED) {
 
