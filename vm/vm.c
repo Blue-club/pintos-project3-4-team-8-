@@ -185,7 +185,8 @@ vm_do_claim_page (struct page *page) {
 */
 void
 supplemental_page_table_init (struct supplemental_page_table *spt UNUSED) {
-
+	// spt 테이블 -> 해쉬 테이블 사용.	
+	hash_init(&spt->spth, spt->spth.hash, spt->spth.less, NULL);
 }
 
 /* Copy supplemental page table from src to dst */
