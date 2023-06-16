@@ -67,8 +67,11 @@ err:
 */
 struct page *
 spt_find_page (struct supplemental_page_table *spt UNUSED, void *va UNUSED) {
-	struct page *page = NULL;
+	struct page *page = pg_round_down(va);
+
 	/* TODO: Fill this function. */
+	if(hash_find(&spt->spth, &page->h_elem) == NULL) 
+		return NULL; 
 
 	return page;
 }
@@ -78,10 +81,12 @@ spt_find_page (struct supplemental_page_table *spt UNUSED, void *va UNUSED) {
  * 이 함수는 인자로 주어진 spt에 해당 가상 주소가 존재하는지 확인해야한다.
 */
 bool
-spt_insert_page (struct supplemental_page_table *spt UNUSED,
-		struct page *page UNUSED) {
+spt_insert_page (struct supplemental_page_table *spt UNUSED, struct page *page UNUSED) {
 	int succ = false;
+
 	/* TODO: Fill this function. */
+	if (hash_insert(&spt->spth, &page->h_elem) == NULL)
+		succ = true;
 
 	return succ;
 }
@@ -115,13 +120,29 @@ vm_evict_frame (void) {
  * and return it. This always return valid address. That is, if the user pool
  * memory is full, this function evicts the frame to get the available memory
  * space.*/
+
+/**
+ * palloc() 함수를 호출하여 페이지를 할당하고, 할당된 페이지의 프레임을 가져옵니다. 
+ * 하지만 사용 가능한 페이지가 없을 경우, 페이지를 대체(evict)하여 사용 가능한 메모리 공간을 확보하고 그 페이지를 반환합니다. 
+ * 이를 통해 항상 유효한 메모리 주소를 반환하며, 
+ * 메모리가 가득 찬 경우에도 프레임을 대체(evict)하여 새로운 페이지 할당을 가능하게 합니다.
+*/
 static struct frame *
-vm_get_frame (void) {
-	struct frame *frame = NULL;
+vm_get_frame (void) {	
+	struct frame *frame = malloc(sizeof(struct frame));
+
 	/* TODO: Fill this function. */
+	frame->kva = palloc_get_multiple(PAL_USER, 1);
+
+	if(frame->kva == NULL) 
+		free(frame);
+		PANIC("todo");
+
+	frame->page = NULL;
 
 	ASSERT (frame != NULL);
 	ASSERT (frame->page == NULL);
+	
 	return frame;
 }
 
@@ -159,7 +180,12 @@ vm_dealloc_page (struct page *page) {
 bool
 vm_claim_page (void *va UNUSED) {
 	struct page *page = NULL;
+
 	/* TODO: Fill this function */
+	page = spt_find_page(thread_current() -> spt, va);
+
+	if (page == NULL) 
+		return false;
 
 	return vm_do_claim_page (page);
 }
@@ -174,6 +200,8 @@ vm_do_claim_page (struct page *page) {
 	page->frame = frame;
 
 	/* TODO: Insert page table entry to map page's VA to frame's PA. */
+	uint64_t n_pml4 = thread_current() -> pml4;
+	pml4_set_page(n_pml4, page, frame->kva, false);
 
 	return swap_in (page, frame->kva);
 }
@@ -185,7 +213,7 @@ vm_do_claim_page (struct page *page) {
 */
 void
 supplemental_page_table_init (struct supplemental_page_table *spt UNUSED) {
-	// spt 테이블 -> 해쉬 테이블 사용.	
+	// spt 테이블 -> 해시 테이블 사용.	
 	hash_init(&spt->spth, hash_func, less_func, NULL);
 }
 
@@ -212,8 +240,11 @@ uint64_t hash_func(const struct hash_elem *e, void *aux) {
 }
 
 bool less_func (const struct hash_elem *a, const struct hash_elem *b, void *aux) {
+	// 요소 a의 페이지
     struct page *page_a = hash_entry(a, struct page, h_elem);
+	// 요소 b의 페이지
     struct page *page_b = hash_entry(b, struct page, h_elem);
 
+	// 크기 순대로 정렬
 	return page_a -> va < page_b -> va;
 }

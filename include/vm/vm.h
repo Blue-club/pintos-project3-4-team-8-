@@ -43,7 +43,7 @@ struct thread;
  * DO NOT REMOVE/MODIFY PREDEFINED MEMBER OF THIS STRUCTURE. */
 struct page {
 	const struct page_operations *operations;
-	void *va;              /* Address in terms of user space */
+	void *va;              /* Address in terms of user space */ /* 페이지가 유저 페이지 영역에서 사용되는 가상 주소 */
 	struct frame *frame;   /* Back reference for frame */
 
 	/* Your implementation */
@@ -63,7 +63,7 @@ struct page {
 
 /* The representation of "frame" */
 struct frame {
-	void *kva;
+	void *kva; /* 프레임이 가상 메모리에서 매핑된 주소 */
 	struct page *page;
 };
 

@@ -88,6 +88,11 @@ hash_destroy (struct hash *h, hash_action_func *destructor) {
    no equal element is already in the table.
    If an equal element is already in the table, returns it
    without inserting NEW. */
+
+/**
+ * NEW를 H 해시 테이블에 삽입하고, 만약 테이블에 이미 동일한 요소가 없다면 널 포인터를 반환합니다. 
+ * 이미 테이블에 동일한 요소가 있는 경우에는 NEW를 삽입하지 않고 해당 요소를 반환합니다.
+*/
 struct hash_elem *
 hash_insert (struct hash *h, struct hash_elem *new) {
 	struct list *bucket = find_bucket (h, new);
@@ -119,6 +124,11 @@ hash_replace (struct hash *h, struct hash_elem *new) {
 
 /* Finds and returns an element equal to E in hash table H, or a
    null pointer if no equal element exists in the table. */
+
+/**
+ * H 해시 테이블에서 E와 동일한 값을 가지는 요소를 찾아서 반환합니다. 
+ * 만약 테이블에 동일한 요소가 존재하지 않으면 널 포인터를 반환합니다. 
+*/
 struct hash_elem *
 hash_find (struct hash *h, struct hash_elem *e) {
 	return find_elem (h, find_bucket (h, e), e);

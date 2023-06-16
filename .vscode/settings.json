@@ -9,6 +9,8 @@
     "inspect.h": "c",
     "hash.h": "c",
     "vm.h": "c",
-    "palloc.h": "c"
+    "palloc.h": "c",
+    "vaddr.h": "c",
+    "page_cache.h": "c"
   }
 }
