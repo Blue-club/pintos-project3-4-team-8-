@@ -114,6 +114,8 @@ thread_init (void) {
 	list_init (&destruction_req);
 	/* Project 1 : init sleep list */
 	list_init (&sleep_list);
+
+	/* Projecet 3 : init hash table */
 	
 
 	/* Set up a thread structure for the running thread. */

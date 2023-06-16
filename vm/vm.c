@@ -186,7 +186,7 @@ vm_do_claim_page (struct page *page) {
 void
 supplemental_page_table_init (struct supplemental_page_table *spt UNUSED) {
 	// spt 테이블 -> 해쉬 테이블 사용.	
-	hash_init(&spt->spth, spt->spth.hash, spt->spth.less, NULL);
+	hash_init(&spt->spth, hash_func, less_func, NULL);
 }
 
 /* Copy supplemental page table from src to dst */
@@ -200,4 +200,20 @@ void
 supplemental_page_table_kill (struct supplemental_page_table *spt UNUSED) {
 	/* TODO: Destroy all the supplemental_page_table hold by thread and
 	 * TODO: writeback all the modified contents to the storage. */
+}
+
+
+uint64_t hash_func(const struct hash_elem *e, void *aux) {
+	// 해당 요소의 페이지 찾기
+	struct page *f_page = hash_entry(e, struct page, h_elem);
+
+	// 페이지의 가상 주소를 해싱하여 해시 값을 반환
+	return hash_bytes(&f_page->va, sizeof(f_page->va));
+}
+
+bool less_func (const struct hash_elem *a, const struct hash_elem *b, void *aux) {
+    struct page *page_a = hash_entry(a, struct page, h_elem);
+    struct page *page_b = hash_entry(b, struct page, h_elem);
+
+	return page_a -> va < page_b -> va;
 }

@@ -35,6 +35,16 @@ struct hash_elem {
  * name of the outer structure STRUCT and the member name MEMBER
  * of the hash element.  See the big comment at the top of the
  * file for an example. */
+
+/**
+ * 해당 매크로는 주어진 해시 요소(HASH_ELEM)를 포함하고 있는 구조체(STRUCT)의 포인터를 반환하는 역할을 합니다. 
+ * 이때 구조체 내에서 해시 요소를 가리키는 멤버의 이름은 MEMBER로 지정되어야 합니다.
+ * 매크로는 구조체 멤버(MEMBER)를 통해 해시 요소(HASH_ELEM)가 포함된 구조체(STRUCT)의 포인터를 계산합니다. 
+ * list_elem은 struct list_elem 타입의 멤버로, 해시 요소가 연결된 연결 리스트에서 다음 요소를 가리키는 포인터입니다. 
+ * offsetof 매크로를 사용하여 STRUCT 구조체 내에서 MEMBER.list_elem의 오프셋을 계산하고, 
+ * 이를 해시 요소(HASH_ELEM)의 주소에서 뺌으로써 구조체(STRUCT)의 주소를 얻습니다. 
+ * 이후 (STRUCT *) 캐스트를 통해 포인터 타입을 STRUCT *로 변환하여 반환합니다.
+*/
 #define hash_entry(HASH_ELEM, STRUCT, MEMBER)                   \
 	((STRUCT *) ((uint8_t *) &(HASH_ELEM)->list_elem        \
 		- offsetof (STRUCT, MEMBER.list_elem)))
