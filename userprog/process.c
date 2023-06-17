@@ -663,15 +663,17 @@ install_page (void *upage, void *kpage, bool writable) {
 			&& pml4_set_page (t->pml4, upage, kpage, writable));
 }
 #else
+
 /* From here, codes will be used after project 3.
  * If you want to implement the function for only project 2, implement it on the
  * upper block. */
-
 static bool
 lazy_load_segment (struct page *page, void *aux) {
 	/* TODO: Load the segment from the file */
 	/* TODO: This called when the first page fault occurs on address VA. */
 	/* TODO: VA is available when calling this function. */
+
+
 }
 
 /* Loads a segment starting at offset OFS in FILE at address
@@ -688,9 +690,19 @@ lazy_load_segment (struct page *page, void *aux) {
  *
  * Return true if successful, false if a memory allocation error
  * or disk read error occurs. */
+
+/**
+ * load_segment 함수는 주어진 파일(FILE)의 주어진 오프셋(OFS)에서부터 시작하는 세그먼트(segment)를 가상 주소 UPAGE에 로드합니다. 
+ * 총 READ_BYTES + ZERO_BYTES 바이트의 가상 메모리가 초기화됩니다.
+ * 이 함수에서 수행되는 초기화는 다음과 같습니다:
+ * UPAGE에서 READ_BYTES 바이트는 FILE의 OFS 오프셋부터 읽어와 초기화해야 합니다.
+ * UPAGE + READ_BYTES에서 ZERO_BYTES 바이트는 0으로 초기화해야 합니다.
+ * 이 함수에 의해 초기화되는 페이지는 WRITABLE이 true인 경우 사용자 프로세스에 의해 쓰기 가능해야 합니다. 
+ * WRITABLE이 false인 경우 페이지는 읽기 전용으로 설정됩니다.
+ * 이 함수는 성공적으로 수행되면 true를 반환하며, 메모리 할당 오류 또는 디스크 읽기 오류가 발생하면 false를 반환합니다.
+*/
 static bool
-load_segment (struct file *file, off_t ofs, uint8_t *upage,
-		uint32_t read_bytes, uint32_t zero_bytes, bool writable) {
+load_segment (struct file *file, off_t ofs, uint8_t *upage, uint32_t read_bytes, uint32_t zero_bytes, bool writable) {
 	ASSERT ((read_bytes + zero_bytes) % PGSIZE == 0);
 	ASSERT (pg_ofs (upage) == 0);
 	ASSERT (ofs % PGSIZE == 0);
