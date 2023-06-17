@@ -3,6 +3,7 @@
 #include "threads/malloc.h"
 #include "vm/vm.h"
 #include "vm/inspect.h"
+#include "include/threads/vaddr.h"
 
 /* Initializes the virtual memory subsystem by invoking each subsystem's
  * intialize codes. */
@@ -53,28 +54,64 @@ vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable,
 		/* TODO: Create the page, fetch the initialier according to the VM type,
 		 * TODO: and then create "uninit" page struct by calling uninit_new. You
 		 * TODO: should modify the field after calling the uninit_new. */
+		struct page *new_page = malloc(sizeof(struct page));
+		void * now_init;
 
+		switch (type) {
+			case VM_ANON:
+				now_init = anon_initializer;
+				break;
+			case VM_FILE:
+				now_init = file_backed_initializer;
+				break;
+			default:
+				break;
+		}
+
+		uninit_new(new_page, upage, init, type, aux, now_init);
 		/* TODO: Insert the page into the spt. */
+		new_page->writable = writable; 
+		hash_insert(&spt->spth, &new_page->h_elem);	
 	}
 err:
 	return false;
 }
 
 /* Find VA from spt and return page. On error, return NULL. */
+
+/**
+ * 인자로 주어진 spt에서 va에 해당하는 struct page를 찾는다.
+ * 실패할 경우 NULL을 반환한다.
+*/
 struct page *
 spt_find_page (struct supplemental_page_table *spt UNUSED, void *va UNUSED) {
 	struct page *page = NULL;
-	/* TODO: Fill this function. */
+	struct page *temp_page;
+	temp_page->va = pg_round_down(va);
 
-	return page;
+	/* TODO: Fill this function. */
+	struct hash_elem *e = hash_find(&spt->spth, &temp_page->h_elem);
+
+	if (e != NULL) {
+		struct page *found_page = hash_entry(e, struct page, h_elem);
+		return found_page;
+	}
+
+	return NULL;
 }
 
 /* Insert PAGE into spt with validation. */
+/**
+ * 인자로 주어진 spt에 struct page를 삽입한다. 
+ * 이 함수는 인자로 주어진 spt에 해당 가상 주소가 존재하는지 확인해야한다.
+*/
 bool
 spt_insert_page (struct supplemental_page_table *spt UNUSED,
 		struct page *page UNUSED) {
 	int succ = false;
 	/* TODO: Fill this function. */
+	if (hash_insert(&spt->spth, &page->h_elem) == NULL)
+		succ = true;
 
 	return succ;
 }
@@ -108,10 +145,25 @@ vm_evict_frame (void) {
  * and return it. This always return valid address. That is, if the user pool
  * memory is full, this function evicts the frame to get the available memory
  * space.*/
+
+/**
+ * palloc() 함수를 호출하여 페이지를 할당하고, 할당된 페이지의 프레임을 가져옵니다. 
+ * 하지만 사용 가능한 페이지가 없을 경우, 페이지를 대체(evict)하여 사용 가능한 메모리 공간을 확보하고 그 페이지를 반환합니다. 
+ * 이를 통해 항상 유효한 메모리 주소를 반환하며, 
+ * 메모리가 가득 찬 경우에도 프레임을 대체(evict)하여 새로운 페이지 할당을 가능하게 합니다.
+*/
 static struct frame *
 vm_get_frame (void) {
-	struct frame *frame = NULL;
+	struct frame *frame = malloc(sizeof(struct frame));
+
 	/* TODO: Fill this function. */
+	frame->kva = palloc_get_multiple(PAL_USER, 1);
+
+	if(frame->kva == NULL) 
+		free(frame);
+		PANIC("todo");
+
+	frame->page = NULL;
 
 	ASSERT (frame != NULL);
 	ASSERT (frame->page == NULL);
@@ -152,7 +204,12 @@ vm_dealloc_page (struct page *page) {
 bool
 vm_claim_page (void *va UNUSED) {
 	struct page *page = NULL;
+
 	/* TODO: Fill this function */
+	page = spt_find_page(&thread_current() -> spt, va);
+
+	if (page == NULL) 
+		return false;
 
 	return vm_do_claim_page (page);
 }
@@ -167,13 +224,40 @@ vm_do_claim_page (struct page *page) {
 	page->frame = frame;
 
 	/* TODO: Insert page table entry to map page's VA to frame's PA. */
+	uint64_t n_pml4 = thread_current() -> pml4;
+	pml4_set_page(n_pml4, page, frame->kva, false);
 
 	return swap_in (page, frame->kva);
 }
 
+uint64_t hash_func(const struct hash_elem *e, void *aux) {
+	// 해당 요소의 페이지 찾기
+	struct page *f_page = hash_entry(e, struct page, h_elem);
+
+	// 페이지의 가상 주소를 해싱하여 해시 값을 반환
+	return hash_bytes(&f_page->va, sizeof(f_page->va));
+}
+
+bool less_func (const struct hash_elem *a, const struct hash_elem *b, void *aux) {
+	// 요소 a의 페이지
+    struct page *page_a = hash_entry(a, struct page, h_elem);
+	// 요소 b의 페이지
+    struct page *page_b = hash_entry(b, struct page, h_elem);
+
+	// 크기 순대로 정렬
+	return page_a -> va < page_b -> va;
+}
+
 /* Initialize new supplemental page table */
+/**
+ * supplemental page table을 초기화한다. 
+ * spt에 사용할 데이터 구조를 선택할 수 있다.
+ * 새로운 프로세스가 시작할 때(initd) 그리고 프로세스가 포크될 때(__do_fork) 호출된다.
+*/
 void
 supplemental_page_table_init (struct supplemental_page_table *spt UNUSED) {
+	// spt 테이블 -> 해시 테이블 사용.	
+	hash_init(&spt->spth, &hash_func, &less_func, NULL);
 }
 
 /* Copy supplemental page table from src to dst */

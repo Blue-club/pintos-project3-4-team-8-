@@ -143,27 +143,47 @@ bss_init (void) {
 /* Populates the page table with the kernel virtual mapping,
  * and then sets up the CPU to use the new page directory.
  * Points base_pml4 to the pml4 it creates. */
+
+/**
+ * 페이지 초기화
+ * 페이지 테이블에 커널 가상 매핑을 설정하고, CPU가 새로운 페이지 디렉토리를 사용하도록 설정한다.
+ * 이 과정에서 base_pml4는 pml4 테이블의 기저 주소를 가리키는 포인터로 사용된다.
+ * 이를 통해서 생성된 페이지 테이블에 접근하고 조작할 수 있다. 즉, base_pml4를 통해 커널 가상 매핑과 CPU 설정에 관련된 작업을 수행할 수 있다.
+ * @param men_end 물리 메모리 주소의 끝
+*/
 static void
 paging_init (uint64_t mem_end) {
 	uint64_t *pml4, *pte;
 	int perm;
+
+	// pml4 테이블을 위해 할당받은 물리메모리 페이지(프레임)의 시작 주소, 즉 pml4 테이블의 물리 메모리 시작 주소
 	pml4 = base_pml4 = palloc_get_page (PAL_ASSERT | PAL_ZERO);
 
 	extern char start, _end_kernel_text;
 	// Maps physical address [0 ~ mem_end] to
 	//   [LOADER_KERN_BASE ~ LOADER_KERN_BASE + mem_end].
+
+	// 물리 메모리 주소 범위 [0 ~ mem_end]를
+	// 가상 메모리 주소 범위 [LOADER_KERN_BASE ~ LOADER_KERN_BASE + mem_end]에 매핑한다.
 	for (uint64_t pa = 0; pa < mem_end; pa += PGSIZE) {
+		// pa를 PGSIZE만큼 증가시키면서 pa -> va로 변환한다.
 		uint64_t va = (uint64_t) ptov(pa);
 
+		// 매핑 권한?을 설정한다. (PTE_P, PTE_W 권한 설정 즉, 페이지 테이블 엔트리 존재하고 쓰기 가능 )
 		perm = PTE_P | PTE_W;
+
+		// 커널 텍스트 영역을 매핑할 떄는 쓰기 권한 제거		
 		if ((uint64_t) &start <= va && va < (uint64_t) &_end_kernel_text)
 			perm &= ~PTE_W;
 
+		// pml4e_walk()로 가상 주소에 해당하는 페이지 테이블 엔트리를 찾는다.
 		if ((pte = pml4e_walk (pml4, va, 1)) != NULL)
 			*pte = pa | perm;
 	}
 
 	// reload cr3
+	// CR3 레지스터에 페이지 테이블 주소를 설정하여 CPU가 새로운 페이지 테이블을 사용하도록 한다.
+	// 페이지 테이블을 변경할 때마다 CR3 레지스터를 업데이트 해야하므로 수행.
 	pml4_activate(0);
 }
 

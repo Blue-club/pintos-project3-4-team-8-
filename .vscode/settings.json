@@ -11,6 +11,11 @@
         "thread.h": "c",
         "pte.h": "c",
         "palloc.h": "c",
-        "main.h": "c"
+        "main.h": "c",
+        "inspect.h": "c",
+        "vm.h": "c",
+        "hash.h": "c",
+        "uninit.h": "c",
+        "page_cache.h": "c"
     }
 }

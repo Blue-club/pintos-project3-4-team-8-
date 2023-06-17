@@ -61,6 +61,13 @@ pdpe_walk (uint64_t *pdpe, const uint64_t va, int create) {
  * on CREATE.  If CREATE is true, then a new page table is
  * created and a pointer into it is returned.  Otherwise, a null
  * pointer is returned. */
+
+/**
+ * 가상 주소 VADDR에 대한 pml4 페이지 테이블 엔트리를 찾고, 
+ * create 변수에 따라 새로운 페이지 테이블을 생성하여 엔트리를 반환하거나 (create == true), 
+ * 페이지 테이블이 없는 경우 null을 반환한다 (create == false). 
+ * 
+*/
 uint64_t *
 pml4e_walk (uint64_t *pml4e, const uint64_t va, int create) {
 	uint64_t *pte = NULL;
@@ -92,6 +99,14 @@ pml4e_walk (uint64_t *pml4e, const uint64_t va, int create) {
  * virtual addresses, but none for user virtual addresses.
  * Returns the new page directory, or a null pointer if memory
  * allocation fails. */
+
+/**
+ * 새로운 pml4를 생성한다. 
+ * pml4는 커널 가상 주소에 대한 매핑은 가지고 있지만 유저 가상 주소에 대한 매핑은 가지고 있지 않다.
+ * 성공적으로 생성되었을 경우 해당 페이지 디렉토리를 반환. 
+ * 그러나 메모리 할당이 실패한 경우에는 null 포인터를 반환. 
+ * 
+*/
 uint64_t *
 pml4_create (void) {
 	uint64_t *pml4 = palloc_get_page (0);
@@ -211,6 +226,13 @@ pml4_activate (uint64_t *pml4) {
  * address UADDR in pml4.  Returns the kernel virtual address
  * corresponding to that physical address, or a null pointer if
  * UADDR is unmapped. */
+
+/**
+ * 인자로 받아온 uaddr을 pml4에서 찾아서 해당하는 물리 주소를 확인한다.
+ * 그리고 그 물리 주소에 대응하는 커널 가상 주소를 반환한다.
+ * 이를 통해서 사용자 가상 주소를 커널 가상 주소로 변환할 수 있다.
+ * 하지만 uaddr이 매핑되어 있지 않은 경우 즉, 해당하는 물리 주소가 없는 경우엔 널 포인터가 반환된다. 
+*/
 void *
 pml4_get_page (uint64_t *pml4, const void *uaddr) {
 	ASSERT (is_user_vaddr (uaddr));
@@ -230,6 +252,12 @@ pml4_get_page (uint64_t *pml4, const void *uaddr) {
  * otherwise it is read-only.
  * Returns true if successful, false if memory allocation
  * failed. */
+
+/**
+ * 사용자 가상 페이지 upage를 물리 프레임으로 매핑하고, 해당하는 물리 프레임은 커널 가상 주소 kpage로 식별된다.
+ * 만약 WRITABLE이 true로 지정되면, 새로운 페이지는 읽기/쓰기가 가능한 상태가 되고 flase라면 읽기 전용 상태가 된다.
+ * 
+*/
 bool
 pml4_set_page (uint64_t *pml4, void *upage, void *kpage, bool rw) {
 	ASSERT (pg_ofs (upage) == 0);
