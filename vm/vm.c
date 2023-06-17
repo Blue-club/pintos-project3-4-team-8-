@@ -69,10 +69,14 @@ vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable,
 		}
 
 		uninit_new(new_page, upage, init, type, aux, now_init);
+
 		/* TODO: Insert the page into the spt. */
 		new_page->writable = writable; 
 		hash_insert(&spt->spth, &new_page->h_elem);	
+
+		return true;
 	}
+
 err:
 	return false;
 }
@@ -85,15 +89,15 @@ err:
 */
 struct page *
 spt_find_page (struct supplemental_page_table *spt UNUSED, void *va UNUSED) {
-	struct page *page = NULL;
-	struct page *temp_page;
+	struct page *temp_page = malloc(sizeof(struct page));
 	temp_page->va = pg_round_down(va);
 
 	/* TODO: Fill this function. */
 	struct hash_elem *e = hash_find(&spt->spth, &temp_page->h_elem);
-
+	
 	if (e != NULL) {
 		struct page *found_page = hash_entry(e, struct page, h_elem);
+
 		return found_page;
 	}
 
@@ -110,8 +114,9 @@ spt_insert_page (struct supplemental_page_table *spt UNUSED,
 		struct page *page UNUSED) {
 	int succ = false;
 	/* TODO: Fill this function. */
-	if (hash_insert(&spt->spth, &page->h_elem) == NULL)
+	if (hash_insert(&spt->spth, &page->h_elem) == NULL) {
 		succ = true;
+	}
 
 	return succ;
 }
@@ -159,14 +164,16 @@ vm_get_frame (void) {
 	/* TODO: Fill this function. */
 	frame->kva = palloc_get_multiple(PAL_USER, 1);
 
-	if(frame->kva == NULL) 
+	if(frame->kva == NULL) {
 		free(frame);
 		PANIC("todo");
+	}
 
 	frame->page = NULL;
 
 	ASSERT (frame != NULL);
 	ASSERT (frame->page == NULL);
+
 	return frame;
 }
 
@@ -182,12 +189,17 @@ vm_handle_wp (struct page *page UNUSED) {
 
 /* Return true on success */
 bool
-vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED,
-		bool user UNUSED, bool write UNUSED, bool not_present UNUSED) {
+vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED, bool user UNUSED, bool write UNUSED, bool not_present UNUSED) {
 	struct supplemental_page_table *spt UNUSED = &thread_current ()->spt;
 	struct page *page = NULL;
+
 	/* TODO: Validate the fault */
 	/* TODO: Your code goes here */
+	page = spt_find_page(&spt->spth, addr);
+
+	if(page == NULL) {
+		return false;
+	}
 
 	return vm_do_claim_page (page);
 }
@@ -217,7 +229,7 @@ vm_claim_page (void *va UNUSED) {
 /* Claim the PAGE and set up the mmu. */
 static bool
 vm_do_claim_page (struct page *page) {
-	struct frame *frame = vm_get_frame ();
+	struct frame *frame = vm_get_frame();
 
 	/* Set links */
 	frame->page = page;
@@ -225,7 +237,7 @@ vm_do_claim_page (struct page *page) {
 
 	/* TODO: Insert page table entry to map page's VA to frame's PA. */
 	uint64_t n_pml4 = thread_current() -> pml4;
-	pml4_set_page(n_pml4, page, frame->kva, false);
+	pml4_set_page(n_pml4, page->va, frame->kva, false);
 
 	return swap_in (page, frame->kva);
 }

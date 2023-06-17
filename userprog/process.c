@@ -702,7 +702,7 @@ static bool install_page (void *upage, void *kpage, bool writable);
  * load_segment 함수는 주어진 파일(FILE)의 주어진 오프셋(OFS)에서부터 시작하는 세그먼트(segment)를 가상 주소 UPAGE에 로드합니다. 
  * 총 READ_BYTES + ZERO_BYTES 바이트의 가상 메모리가 초기화됩니다.
  * 이 함수에서 수행되는 초기화는 다음과 같습니다:
- * UPAGE에서 READ_BYTES 바이트는 FILE의 OFS 오프셋부터 읽어와 초기화해야 합니다.
+ * UPAGE에서 READ_BYTES는 FILE의 OFS 오프셋부터 읽어와 초기화해야 합니다.
  * UPAGE + READ_BYTES에서 ZERO_BYTES 바이트는 0으로 초기화해야 합니다.
  * 이 함수에 의해 초기화되는 페이지는 WRITABLE이 true인 경우 사용자 프로세스에 의해 쓰기 가능해야 합니다. 
  * WRITABLE이 false인 경우 페이지는 읽기 전용으로 설정됩니다.
@@ -746,6 +746,8 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 		zero_bytes -= page_zero_bytes;
 		upage += PGSIZE;
 	}
+
+
 	return true;
 }
 
@@ -788,12 +790,35 @@ install_page (void *upage, void *kpage, bool writable) {
 /* From here, codes will be used after project 3.
  * If you want to implement the function for only project 2, implement it on the
  * upper block. */
+struct file_segment {
+	struct file *file;
+	size_t page_read_bytes;
+	size_t page_zero_bytes;
+	bool writable;
+};
 
 static bool
-lazy_load_segment (struct page *page, void *aux) {
+lazy_load_segment (struct page *page, struct file_segment *aux) {
 	/* TODO: Load the segment from the file */
 	/* TODO: This called when the first page fault occurs on address VA. */
 	/* TODO: VA is available when calling this function. */
+    // Cast the aux parameter to the appropriate type
+	struct thread *t = thread_current();
+    
+    // Get a kernel page to load the segment
+    uint8_t *kpage = palloc_get_page(PAL_USER);
+    if (kpage == NULL) {
+        return false;  // Memory allocation error
+    }
+
+	if (file_read (&aux->file, kpage, &aux->page_read_bytes) != (int) &aux->page_read_bytes) {
+		palloc_free_page (kpage);
+		return false;
+	}
+
+	memset (kpage + aux->page_read_bytes, 0, aux->page_zero_bytes);
+    
+	return (pml4_get_page (t->pml4, page->va) == NULL && pml4_set_page (t->pml4, page->va, kpage, &aux->writable));
 }
 
 /* Loads a segment starting at offset OFS in FILE at address
@@ -825,9 +850,16 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 		size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
 		/* TODO: Set up aux to pass information to the lazy_load_segment. */
-		void *aux = NULL;
+		struct file_segment *now_file = malloc(sizeof(struct file_segment));
+		now_file->file = file;
+		now_file->page_read_bytes = page_read_bytes;
+		now_file->page_zero_bytes = page_zero_bytes;
+		now_file->writable = writable;
+
+		printf("check load_segment() \n\n");
+
 		if (!vm_alloc_page_with_initializer (VM_ANON, upage,
-					writable, lazy_load_segment, aux))
+					writable, lazy_load_segment, now_file))
 			return false;
 
 		/* Advance. */
@@ -835,6 +867,7 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 		zero_bytes -= page_zero_bytes;
 		upage += PGSIZE;
 	}
+
 	return true;
 }
 
@@ -843,11 +876,36 @@ static bool
 setup_stack (struct intr_frame *if_) {
 	bool success = false;
 	void *stack_bottom = (void *) (((uint8_t *) USER_STACK) - PGSIZE);
+	struct thread *t = thread_current();
 
 	/* TODO: Map the stack on stack_bottom and claim the page immediately.
 	 * TODO: If success, set the rsp accordingly.
 	 * TODO: You should mark the page is stack. */
 	/* TODO: Your code goes here */
+	struct page *stack_page = NULL;
+
+
+	if(vm_alloc_page_with_initializer(VM_ANON | VM_MARKER_0, stack_bottom, true, NULL, NULL)) {
+		stack_page = spt_find_page(&t->spt, stack_bottom);
+	}
+
+	if(stack_page != NULL) {
+		uint8_t *kpage = palloc_get_page(PAL_USER | PAL_ZERO);
+
+		if(kpage != NULL) {
+			if((pml4_get_page (t->pml4, stack_page->va) == NULL && pml4_set_page (t->pml4, stack_page->va, kpage, true))) {
+				success = true;
+				if_->rsp = USER_STACK;
+			}else {
+				palloc_free_page(kpage);
+			}
+		}
+	}
+
+
+	printf("setup_stack() \n\n");
+
+
 
 	return success;
 }
