@@ -4,6 +4,7 @@
 #include "vm/vm.h"
 #include "vm/inspect.h"
 #include "include/threads/vaddr.h"
+#include "threads/mmu.h"
 
 /* Initializes the virtual memory subsystem by invoking each subsystem's
  * intialize codes. */
@@ -97,7 +98,6 @@ spt_find_page (struct supplemental_page_table *spt UNUSED, void *va UNUSED) {
 	
 	if (e != NULL) {
 		struct page *found_page = hash_entry(e, struct page, h_elem);
-
 		return found_page;
 	}
 
@@ -237,7 +237,11 @@ vm_do_claim_page (struct page *page) {
 
 	/* TODO: Insert page table entry to map page's VA to frame's PA. */
 	uint64_t n_pml4 = thread_current() -> pml4;
-	pml4_set_page(n_pml4, page->va, frame->kva, false);
+	bool succ = pml4_set_page(n_pml4, page->va, frame->kva, true);
+
+	if(!succ) {
+		return false;
+	}
 
 	return swap_in (page, frame->kva);
 }
@@ -269,7 +273,7 @@ bool less_func (const struct hash_elem *a, const struct hash_elem *b, void *aux)
 void
 supplemental_page_table_init (struct supplemental_page_table *spt UNUSED) {
 	// spt 테이블 -> 해시 테이블 사용.	
-	hash_init(&spt->spth, &hash_func, &less_func, NULL);
+	hash_init(&spt->spth, hash_func, less_func, NULL);
 }
 
 /* Copy supplemental page table from src to dst */
