@@ -804,21 +804,21 @@ lazy_load_segment (struct page *page, struct file_segment *aux) {
 	/* TODO: VA is available when calling this function. */
     // Cast the aux parameter to the appropriate type
 	struct thread *t = thread_current();
-    
+
     // Get a kernel page to load the segment
-    uint8_t *kpage = palloc_get_page(PAL_USER);
+    uint8_t *kpage = page->frame->kva;
     if (kpage == NULL) {
         return false;  // Memory allocation error
     }
 
-	if (file_read (&aux->file, kpage, &aux->page_read_bytes) != (int) &aux->page_read_bytes) {
+	if (file_read (aux->file, kpage, aux->page_read_bytes) != (int) aux->page_read_bytes) {
 		palloc_free_page (kpage);
 		return false;
 	}
 
 	memset (kpage + aux->page_read_bytes, 0, aux->page_zero_bytes);
-    
-	return (pml4_get_page (t->pml4, page->va) == NULL && pml4_set_page (t->pml4, page->va, kpage, &aux->writable));
+
+	return true;
 }
 
 /* Loads a segment starting at offset OFS in FILE at address
@@ -836,8 +836,7 @@ lazy_load_segment (struct page *page, struct file_segment *aux) {
  * Return true if successful, false if a memory allocation error
  * or disk read error occurs. */
 static bool
-load_segment (struct file *file, off_t ofs, uint8_t *upage,
-		uint32_t read_bytes, uint32_t zero_bytes, bool writable) {
+load_segment (struct file *file, off_t ofs, uint8_t *upage, uint32_t read_bytes, uint32_t zero_bytes, bool writable) {
 	ASSERT ((read_bytes + zero_bytes) % PGSIZE == 0);
 	ASSERT (pg_ofs (upage) == 0);
 	ASSERT (ofs % PGSIZE == 0);
@@ -851,21 +850,31 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 
 		/* TODO: Set up aux to pass information to the lazy_load_segment. */
 		struct file_segment *now_file = malloc(sizeof(struct file_segment));
-		now_file->file = file;
+		if (now_file == NULL) {
+			// Memory allocation error
+			return false;
+		}
+
+		now_file->file = malloc(sizeof(struct file));
+		memcpy(now_file->file, file, sizeof(struct file));
 		now_file->page_read_bytes = page_read_bytes;
 		now_file->page_zero_bytes = page_zero_bytes;
 		now_file->writable = writable;
 
-		printf("check load_segment() \n\n");
+		file_seek(now_file->file, ofs);
 
-		if (!vm_alloc_page_with_initializer (VM_ANON, upage,
-					writable, lazy_load_segment, now_file))
+		if (!vm_alloc_page_with_initializer (VM_ANON, upage, writable, lazy_load_segment, now_file)) {
+			free(now_file);
 			return false;
+		}
+
 
 		/* Advance. */
 		read_bytes -= page_read_bytes;
 		zero_bytes -= page_zero_bytes;
 		upage += PGSIZE;
+
+		ofs += page_read_bytes;
 	}
 
 	return true;
@@ -901,11 +910,6 @@ setup_stack (struct intr_frame *if_) {
 			}
 		}
 	}
-
-
-	printf("setup_stack() \n\n");
-
-
 
 	return success;
 }
