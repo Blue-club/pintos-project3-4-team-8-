@@ -54,6 +54,10 @@ void syscall_init (void) {
  * @param f
 */
 void syscall_handler (struct intr_frame *f) {
+	struct thread *curr = thread_current();
+
+	curr->n_rsp = f->rsp;
+
 	// TODO: Your implementation goes here.
 	switch (f -> R.rax) {
 		case SYS_HALT:
@@ -98,7 +102,6 @@ void syscall_handler (struct intr_frame *f) {
 		default:
 			break;
 	}
-
 }
 
 /* 프로세스 관련 시스템 콜 */
