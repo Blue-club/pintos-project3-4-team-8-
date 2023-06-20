@@ -39,9 +39,9 @@ int is_correct_pointer(const void *addr) {
 		return 0;
 	}
 	
-	if(pml4_get_page(curr->pml4, addr) == NULL) {
-		return 0;
-	}
+	// if(pml4_get_page(curr->pml4, addr) == NULL) {
+	// 	return 0;
+	// }
 
 	return 1;
 }
@@ -109,12 +109,11 @@ process_fork (const char *name, struct intr_frame *if_ ) {
 	struct thread * child = find_child(tid);
 	sema_down(&thread_current()->load_sema);
 	
-
-	if (child->exit_status == TID_ERROR)
-	{
+	if (child->exit_status == TID_ERROR) {
 		// 자식 프로세스의 pid가 아닌 TID_ERROR를 반환한다.
 		return TID_ERROR;
 	}
+
 	return tid;
 }
 
@@ -247,6 +246,7 @@ process_exec (void *f_name) {
 	// hex_dump(_if.rsp,_if.rsp, USER_STACK-_if.rsp,true);
 	/* If load failed, quit. */
 	palloc_free_page (file_name);
+	
 	if (!success)
 		return -1;
 
@@ -284,6 +284,7 @@ process_wait (tid_t child_tid UNUSED) {
 	list_remove(&child_thread->p_elem);  // 자식 스레드를 자식 스레드 리스트에서 제거
 	int exit_status = child_thread->exit_status;
 	sema_up(&child_thread->exit_sema);
+
 	return exit_status;
 	// wait 함수가 실패할 경우에는 -1을 반환한다.
 	// 아래 두 가지 경우일 때에도 -1을 반환한다.
@@ -316,6 +317,7 @@ process_exit (void) {
         if(curr->fdt[i] != 0)	
 			close(i);
 	}
+
 	file_close(curr->running_file);
 	palloc_free_multiple(curr->fdt, 2);
 	process_cleanup ();
@@ -620,13 +622,13 @@ load (const char *file_name, struct intr_frame *if_) {
 
 	// 성공적으로 ELF 파일이 로드되었으므로 success 변수를 true로 설정한다.
 	success = true;
-
 done:
 	// goto done 문이 실행되었을 때의 처리 목록
 	// 오류가 발생했을 때 OR 처리가 완료되었을 때 실행된다.
 
 	// 파일을 닫고, 성공 여부를 반환한다.
 	// file_close (file);
+
 	return success;
 }
 
@@ -868,7 +870,6 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage, uint32_t read_bytes,
 			return false;
 		}
 
-
 		/* Advance. */
 		read_bytes -= page_read_bytes;
 		zero_bytes -= page_zero_bytes;
@@ -891,24 +892,10 @@ setup_stack (struct intr_frame *if_) {
 	 * TODO: If success, set the rsp accordingly.
 	 * TODO: You should mark the page is stack. */
 	/* TODO: Your code goes here */
-	struct page *stack_page = NULL;
-
 
 	if(vm_alloc_page_with_initializer(VM_ANON | VM_MARKER_0, stack_bottom, true, NULL, NULL)) {
-		stack_page = spt_find_page(&t->spt, stack_bottom);
-	}
-
-	if(stack_page != NULL) {
-		uint8_t *kpage = palloc_get_page(PAL_USER | PAL_ZERO);
-
-		if(kpage != NULL) {
-			if((pml4_get_page (t->pml4, stack_page->va) == NULL && pml4_set_page (t->pml4, stack_page->va, kpage, true))) {
-				success = true;
-				if_->rsp = USER_STACK;
-			}else {
-				palloc_free_page(kpage);
-			}
-		}
+		success = vm_claim_page(stack_bottom);
+		if_->rsp = USER_STACK;
 	}
 
 	return success;

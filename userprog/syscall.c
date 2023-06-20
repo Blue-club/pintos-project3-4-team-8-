@@ -55,7 +55,6 @@ void syscall_init (void) {
 */
 void syscall_handler (struct intr_frame *f) {
 	// TODO: Your implementation goes here.
-	// printf ("system call!\n");
 	switch (f -> R.rax) {
 		case SYS_HALT:
 			halt();
@@ -139,10 +138,14 @@ tid_t fork (const char *thread_name, struct intr_frame* if_ ) {
 int exec (const char *file) {
 	if(!is_correct_pointer(file))
 		exit(-1);
-	char * fn_copy = palloc_get_page(PAL_ZERO);
+
+	char *fn_copy = palloc_get_page(PAL_ZERO);
+
 	if(fn_copy == NULL)
 		exit(-1);
+
 	strlcpy(fn_copy, file, PGSIZE);
+
 	if(process_exec(fn_copy)== -1){
 		exit(-1);
 	}

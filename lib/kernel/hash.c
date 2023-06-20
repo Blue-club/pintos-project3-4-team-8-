@@ -210,6 +210,17 @@ hash_first (struct hash_iterator *i, struct hash *h) {
    functions hash_clear(), hash_destroy(), hash_insert(),
    hash_replace(), or hash_delete(), invalidates all
    iterators. */
+
+/**
+ * hash_next() 함수는 해시 테이블에서 다음 요소로 이동한 후 해당 요소를 반환한다.
+ * 요소가 더 이상 남아있지 않을 경우 NULL 포인터를 반환한다.
+ * 요소들은 임의의 순서로 반환된다.
+ * 
+ * hash_clear(), hash_destroy(), hash_insert(), hash_replace(), 또는 hash_delete()와 같은 함수를 사용하여 
+ * 반복 중에 해시 테이블을 수정하면 모든 반복자가 무효화됩니다.
+ * hash_next() 함수를 사용하여 해시 테이블을 반복하고 있는 도중에 해시 테이블이 변경되면 더 이상 정확한 반복 작업을 보장할 수 없습니다. 
+ * 따라서, 이러한 변경이 발생하지 않도록 주의해야 합니다.
+ */
 struct hash_elem *
 hash_next (struct hash_iterator *i) {
 	ASSERT (i != NULL);

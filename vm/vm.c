@@ -5,6 +5,8 @@
 #include "vm/inspect.h"
 #include "include/threads/vaddr.h"
 #include "threads/mmu.h"
+#include <string.h>
+
 
 /* Initializes the virtual memory subsystem by invoking each subsystem's
  * intialize codes. */
@@ -43,10 +45,9 @@ static struct frame *vm_evict_frame (void);
  * page, do not create it directly and make it through this function or
  * `vm_alloc_page`. */
 bool
-vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable,
-		vm_initializer *init, void *aux) {
+vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable, vm_initializer *init, void *aux UNUSED) {
 
-	ASSERT (VM_TYPE(type) != VM_UNINIT)
+	ASSERT (VM_TYPE(type) != VM_UNINIT);
 
 	struct supplemental_page_table *spt = &thread_current ()->spt;
 
@@ -58,7 +59,7 @@ vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable,
 		struct page *new_page = malloc(sizeof(struct page));
 		void * now_init;
 
-		switch (type) {
+		switch (VM_TYPE(type)) {
 			case VM_ANON:
 				now_init = anon_initializer;
 				break;
@@ -214,7 +215,7 @@ vm_dealloc_page (struct page *page) {
 
 /* Claim the page that allocate on VA. */
 bool
-vm_claim_page (void *va UNUSED) {
+vm_claim_page (void *va) {
 	struct page *page = NULL;
 
 	/* TODO: Fill this function */
@@ -264,6 +265,11 @@ bool less_func (const struct hash_elem *a, const struct hash_elem *b, void *aux)
 	return page_a -> va < page_b -> va;
 }
 
+void destroy_func (struct hash_elem *e, void *aux) {
+	struct page *p = hash_entry(e, struct page, h_elem);
+	destroy(p);
+};
+
 /* Initialize new supplemental page table */
 /**
  * supplemental page table을 초기화한다. 
@@ -271,20 +277,61 @@ bool less_func (const struct hash_elem *a, const struct hash_elem *b, void *aux)
  * 새로운 프로세스가 시작할 때(initd) 그리고 프로세스가 포크될 때(__do_fork) 호출된다.
 */
 void
-supplemental_page_table_init (struct supplemental_page_table *spt UNUSED) {
+supplemental_page_table_init (struct supplemental_page_table *spt) {
 	// spt 테이블 -> 해시 테이블 사용.	
 	hash_init(&spt->spth, hash_func, less_func, NULL);
 }
 
 /* Copy supplemental page table from src to dst */
 bool
-supplemental_page_table_copy (struct supplemental_page_table *dst UNUSED,
-		struct supplemental_page_table *src UNUSED) {
+supplemental_page_table_copy (struct supplemental_page_table *dst, struct supplemental_page_table *src) {
+	// 각각의 dst와 src가 NULL 포인터인지 확인한다.	
+	if (dst == NULL || src == NULL) {
+		return false;
+	}
+
+	bool succ = false;
+
+	// src 즉 spt의 엔트리를 순회하면서 각 페이지 정보를 dst에 복사하자.
+	struct hash_iterator iterator; // 현재 페이지
+	hash_first(&iterator, &src->spth);
+
+	while(hash_next(&iterator)) {
+		struct hash_elem *e = hash_cur(&iterator);
+		struct page *now_page = hash_entry(e, struct page, h_elem);
+
+		if(VM_TYPE(now_page->operations->type) == VM_UNINIT) {
+			succ = vm_alloc_page_with_initializer(VM_ANON, now_page->va, now_page->writable, now_page->uninit.init, now_page->uninit.aux);
+			continue;
+		}else {
+			if (!vm_alloc_page_with_initializer(VM_TYPE(now_page->operations->type), now_page->va, now_page->writable, NULL, NULL)) {
+				return false;
+			}
+		}
+		
+		if(!vm_claim_page(now_page->va)) {
+			return false;
+		}
+
+		struct page *find_page = spt_find_page(dst, now_page->va);
+		
+		if(find_page == NULL) {
+			return false;
+		}
+
+		memcpy(find_page->frame->kva, now_page->frame->kva, PGSIZE);	
+	}
+
+
+	return true;
 }
 
 /* Free the resource hold by the supplemental page table */
 void
-supplemental_page_table_kill (struct supplemental_page_table *spt UNUSED) {
+supplemental_page_table_kill (struct supplemental_page_table *spt) {
 	/* TODO: Destroy all the supplemental_page_table hold by thread and
 	 * TODO: writeback all the modified contents to the storage. */
+
+	// Clear the hash table using hash_clear
+	hash_clear(&spt->spth, destroy_func);
 }
