@@ -182,22 +182,15 @@ vm_get_frame (void) {
 static void
 vm_stack_growth (void *addr UNUSED) {
 	struct thread *curr = thread_current();
-	void *npage_va = pg_round_down(addr);
+	void *page_addr = pg_round_down(addr);
 
-	// 새로 할당할 페이지 수 계산
-	size_t num_pages = pg_no(curr->n_rsp + (1 << 3)) - pg_no(npage_va) + 1;
-
-	// 페이지 단위로 스택 확장
-	for (size_t i = 0; i < num_pages; i++) {
-		void *page_addr = npage_va + (i * PGSIZE);
-
-		if(vm_alloc_page_with_initializer(VM_ANON | VM_MARKER_0, page_addr, true, NULL, NULL) == NULL) {
-			return;
-		}
-
+	while(spt_find_page(&curr->spt, page_addr) == NULL){
+		// 한 페이지만 할당하자.
+		vm_alloc_page_with_initializer(VM_ANON | VM_MARKER_0, page_addr, true, NULL, NULL);
 		vm_claim_page(page_addr);
-	}
 
+		page_addr += PGSIZE;
+	}
 }
 
 /* Handle the fault on write_protected page */
@@ -217,11 +210,12 @@ vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED, bool user U
 	void *stack_bottom = (void *) (((uint8_t *) USER_STACK) - (PGSIZE * STACK_MAX_PAGES));
 	void *stack_top = USER_STACK;
 
+
 	page = spt_find_page(&spt->spth, addr);
 
 	if(page == NULL && (addr >= stack_bottom && addr <= stack_top)) {
-		// printf("n_rsp : %p\n", curr->n_rsp);
-		if(!((f->rsp - (1<<3)) <= addr))
+
+		if(addr < (f->rsp - (1 << 3)))
 			return false;
 
 		vm_stack_growth(addr);
@@ -232,9 +226,8 @@ vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED, bool user U
 	if(page == NULL) {
 		return false;
 	}
-	// printf("eafjdfs\n");
 
-	return vm_do_claim_page (page);	
+	return vm_do_claim_page (page);
 }
 
 /* Free the page.
