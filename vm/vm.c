@@ -185,7 +185,6 @@ vm_stack_growth (void *addr UNUSED) {
 	void *page_addr = pg_round_down(addr);
 
 	while(spt_find_page(&curr->spt, page_addr) == NULL){
-		// 한 페이지만 할당하자.
 		vm_alloc_page_with_initializer(VM_ANON | VM_MARKER_0, page_addr, true, NULL, NULL);
 		vm_claim_page(page_addr);
 
@@ -214,7 +213,6 @@ vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED, bool user U
 	page = spt_find_page(&spt->spth, addr);
 
 	if(page == NULL && (addr >= stack_bottom && addr <= stack_top)) {
-
 		if(addr < (f->rsp - (1 << 3)))
 			return false;
 

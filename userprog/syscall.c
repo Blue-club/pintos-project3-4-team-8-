@@ -97,6 +97,12 @@ void syscall_handler (struct intr_frame *f) {
 		case SYS_TELL:
 			f->R.rax = tell(f->R.rdi);
 			break;
+		case SYS_MMAP:
+			f->R.rax = mmap(f->R.rdi, f->R.rsi, f->R.rdx, f->R.r10, f->R.r8);
+			break;
+		case SYS_MUNMAP:
+			munmap(f->R.rdi);
+			break;
 		default:
 			break;
 	}
@@ -211,6 +217,7 @@ int open (const char *file) {
 		lock_release(&filesys_lock);
 		return -1;
 	}
+
 
 	for (int i = 2; i < 128; i++) {
 		if(fdt[i] == 0) {
@@ -371,4 +378,44 @@ void close (int fd) {
 
 	file_close(curr->fdt[fd]);
 	thread_current()->fdt[fd] = NULL;
+};
+
+/**
+ * mmap
+*/
+void *mmap (void *addr, size_t length, int writable, int fd, off_t offset) {
+	if(!is_correct_pointer(addr)) {
+		exit(-1);
+	}
+	
+	// fd가 0이나 1일 경우 mmap 실패
+	if(fd == 0 || fd == 1) {
+		exit(-1);
+	}
+
+	if(addr != pg_round_down(addr)) {
+		exit(-1);
+	}
+
+	// 해당 fd로 열린 파일의 길이가 0바이트 인 경우 mmap 호출 실패
+	// if(filesize(fd)) {
+	// 	exit(-1);
+	// }	
+
+	struct thread *curr = thread_current(); // 현재 스레드 정보.
+	struct file *now_file = curr->fdt[fd];  // 현재 파일 정보 가져옴.
+	struct page *now_page = NULL;
+
+	if ((now_page = spt_find_page(&curr->spt, addr)) != NULL) {
+		exit(-1);
+	}
+
+	return do_mmap(addr, length, writable, now_file, offset);
+};
+
+/**
+ * munmap
+*/
+void munmap (void *addr) {
+
 };
