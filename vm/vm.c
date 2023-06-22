@@ -209,7 +209,6 @@ vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED, bool user U
 	void *stack_bottom = (void *) (((uint8_t *) USER_STACK) - (PGSIZE * STACK_MAX_PAGES));
 	void *stack_top = USER_STACK;
 
-
 	page = spt_find_page(&spt->spth, addr);
 
 	if(page == NULL && (addr >= stack_bottom && addr <= stack_top)) {
@@ -222,6 +221,7 @@ vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED, bool user U
 	}
 
 	if(page == NULL) {
+		
 		return false;
 	}
 
@@ -264,6 +264,7 @@ vm_do_claim_page (struct page *page) {
 	bool succ = pml4_set_page(n_pml4, page->va, frame->kva, true);
 
 	if(!succ) {
+
 		return false;
 	}
 

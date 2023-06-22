@@ -385,29 +385,29 @@ void close (int fd) {
 */
 void *mmap (void *addr, size_t length, int writable, int fd, off_t offset) {
 	if(!is_correct_pointer(addr)) {
-		exit(-1);
+		return NULL;
 	}
 	
 	// fd가 0이나 1일 경우 mmap 실패
 	if(fd == 0 || fd == 1) {
-		exit(-1);
+		return NULL;
 	}
 
 	if(addr != pg_round_down(addr)) {
-		exit(-1);
+		return NULL;
 	}
 
 	// 해당 fd로 열린 파일의 길이가 0바이트 인 경우 mmap 호출 실패
-	// if(filesize(fd)) {
-	// 	exit(-1);
-	// }	
+	if(filesize(fd) <= 0) {
+		return NULL;
+	}	
 
 	struct thread *curr = thread_current(); // 현재 스레드 정보.
 	struct file *now_file = curr->fdt[fd];  // 현재 파일 정보 가져옴.
 	struct page *now_page = NULL;
 
 	if ((now_page = spt_find_page(&curr->spt, addr)) != NULL) {
-		exit(-1);
+		return NULL;
 	}
 
 	return do_mmap(addr, length, writable, now_file, offset);
@@ -417,5 +417,5 @@ void *mmap (void *addr, size_t length, int writable, int fd, off_t offset) {
  * munmap
 */
 void munmap (void *addr) {
-
+	return do_munmap(addr);
 };

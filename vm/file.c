@@ -2,6 +2,7 @@
 
 #include "vm/vm.h"
 #include "threads/vaddr.h"
+#include "include/userprog/process.h"
 #include <round.h>
 
 static bool file_backed_swap_in (struct page *page, void *kva);
@@ -46,31 +47,68 @@ file_backed_swap_out (struct page *page) {
 static void
 file_backed_destroy (struct page *page) {
 	struct file_page *file_page UNUSED = &page->file;
+
+	// free(page);
 }
 
 /* Do the mmap */
 void *
 do_mmap (void *addr, size_t length, int writable, struct file *file, off_t offset) {
-	void *now_addr = addr;
-	size_t num_pages = DIV_ROUND_UP(length, PGSIZE);
-	off_t read_byte = 0;
+    void *now_addr = addr;
+    size_t num_pages = DIV_ROUND_UP(length, PGSIZE);
 
-	for (size_t i = 0; i < num_pages; i++) {
-		vm_alloc_page_with_initializer(VM_FILE, now_addr, true, NULL, NULL);
-		read_byte += file_read(file, now_addr, PGSIZE);
+	// printf("addr is %p\n\n", addr);
 
+	while (length > 0) {
+		size_t page_read_bytes = length < PGSIZE ? length : PGSIZE;
+        size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
-		file_seek(file, offset);
+        struct file_segment *now_file = malloc(sizeof(struct file_segment));
 
-		now_addr += (i * PGSIZE);
+        now_file->file = malloc(sizeof(struct file));
+		memcpy(now_file->file, file, sizeof(struct file));
+        now_file->page_read_bytes = page_read_bytes;
+        now_file->page_zero_bytes = page_zero_bytes;
+        now_file->writable = writable;
+
+        file_seek(now_file->file, offset);
+
+        if(!vm_alloc_page_with_initializer(VM_FILE, now_addr, writable, lazy_load_segment, now_file)) {
+			free(now_file);
+			return NULL;
+		}
+
+        length -= page_read_bytes;
+        offset += page_read_bytes;
+
+        now_addr += PGSIZE;
 	}
 
-	memset((uint64_t)addr + read_byte, 0, PGSIZE - read_byte);
+	// printf("mmap page va is : %p\n\n", addr);
 
-	return now_addr;
+    return addr;
 }
 
 /* Do the munmap */
 void
 do_munmap (void *addr) {
+	struct thread *curr = thread_current();
+	void *now_addr = addr;
+	struct page *now_page = spt_find_page(&curr->spt, now_addr);
+
+	printf("start now page is : %p\n\n" , now_page->va);
+	printf("start now addr is : %p\n\n" , now_addr);
+
+	while(now_page != NULL && (VM_TYPE(now_page->operations->type) == VM_FILE)) {
+		file_write_at
+		
+		free(now_page->frame);
+		free(now_page);
+
+
+		printf("end now page is : %p\n\n" , now_page->va);
+		printf("end now addr is : %p\n\n" , now_addr);
+
+		now_addr = addr + PGSIZE;
+	}
 }

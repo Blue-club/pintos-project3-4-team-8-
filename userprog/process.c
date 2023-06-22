@@ -792,14 +792,7 @@ install_page (void *upage, void *kpage, bool writable) {
 /* From here, codes will be used after project 3.
  * If you want to implement the function for only project 2, implement it on the
  * upper block. */
-struct file_segment {
-	struct file *file;
-	size_t page_read_bytes;
-	size_t page_zero_bytes;
-	bool writable;
-};
-
-static bool
+bool
 lazy_load_segment (struct page *page, struct file_segment *aux) {
 	/* TODO: Load the segment from the file */
 	/* TODO: This called when the first page fault occurs on address VA. */
@@ -813,12 +806,28 @@ lazy_load_segment (struct page *page, struct file_segment *aux) {
         return false;  // Memory allocation error
     }
 
-	if (file_read (aux->file, kpage, aux->page_read_bytes) != (int) aux->page_read_bytes) {
-		palloc_free_page (kpage);
-		return false;
+	if(VM_TYPE(page->operations->type) == VM_ANON) {
+		if (file_read (aux->file, kpage, aux->page_read_bytes) != (int) aux->page_read_bytes) {
+			palloc_free_page (kpage);
+			return false;
+		}
+
+		memset (kpage + aux->page_read_bytes, 0, aux->page_zero_bytes);
+	}else if(VM_TYPE(page->operations->type) == VM_FILE) {
+		off_t true_bytes = file_read(aux->file, kpage, aux->page_read_bytes);
+
+		if (true_bytes < (int) aux -> page_read_bytes) {
+			if (true_bytes == 0 && aux->page_read_bytes != 0) {
+				palloc_free_page (kpage);
+
+				return false;
+			}else {
+				
+				memset (kpage + true_bytes, 0, PGSIZE - true_bytes);
+			}
+		}
 	}
 
-	memset (kpage + aux->page_read_bytes, 0, aux->page_zero_bytes);
 
 	return true;
 }
