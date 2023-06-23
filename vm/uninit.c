@@ -64,5 +64,14 @@ uninit_destroy (struct page *page) {
 	struct uninit_page *uninit UNUSED = &page->uninit;
 	/* TODO: Fill this function.
 	 * TODO: If you don't have anything to do, just return. */
-	// free(page);
+
+	pml4_clear_page(curr->pml4, page->va);
+	hash_delete(&curr->spt.spth, &page->h_elem);		
+
+	if(page->uninit.type & VM_MARKER_1) {
+		struct file_segment *now_segment = uninit->aux;
+
+		// free(now_segment->file);
+		// free(now_segment);
+	}
 }

@@ -28,8 +28,6 @@ vm_file_init (void) {
 bool
 file_backed_initializer (struct page *page, enum vm_type type, void *kva) {
 	/* Set up the handler */
-
-	// 타입 캐싱
 	enum vm_type now_type = type;
 
 	page->operations = &file_ops;
@@ -86,10 +84,19 @@ do_mmap (void *addr, size_t length, int writable, struct file *file, off_t offse
 
         file_seek(now_file->file, offset);
 
-		if(!vm_alloc_page_with_initializer(i == num_pages - 1 ? (VM_FILE | VM_MARKER_0) : VM_FILE , now_addr, writable, lazy_load_segment, now_file)) {
-			file_close(file);
-			free(now_file);
-			return NULL;
+
+		if(i == num_pages - 1) {
+			if(!vm_alloc_page_with_initializer(VM_FILE | VM_MARKER_1, now_addr, writable, lazy_load_segment, now_file)) {
+				file_close(file);
+				free(now_file);
+				return NULL;
+			}
+		}else {
+			if(!vm_alloc_page_with_initializer(VM_FILE , now_addr, writable, lazy_load_segment, now_file)) {
+				file_close(file);
+				free(now_file);
+				return NULL;
+			}
 		}
 
         length -= page_read_bytes;
@@ -108,16 +115,30 @@ do_munmap (void *addr) {
 	void *now_addr = addr;
 	struct page *now_page = spt_find_page(&curr->spt, now_addr);
 
-	while(now_page != NULL && VM_TYPE(now_page->operations->type) == VM_FILE && VM_TYPE(now_page->operations->type) == VM_UNINIT) {
-		file_seek(now_page->file.file_info->file, now_page->file.file_info->ofs);
-		off_t write_byte = file_write(now_page->file.file_info->file, now_addr, now_page->file.read_byte);
+	while(now_page != NULL && ((VM_TYPE(now_page->operations->type) == VM_FILE) || (VM_TYPE(now_page->operations->type) == VM_UNINIT))) {
+		if(VM_TYPE(now_page->operations->type) == VM_FILE) {
+			// 로드가 되어있는 파일. 
 
-		if(now_page->file.file_type & VM_MARKER_0) {
-			// 해당 페이지가 마지막 페이지일 경우
-			vm_dealloc_page(now_page);
-			break;
+			// 파일 overwrite
+			file_seek(now_page->file.file_info->file, now_page->file.file_info->ofs);
+			file_write(now_page->file.file_info->file, now_addr, now_page->file.read_byte);
+			// off_t write_byte = file_write(now_page->file.file_info->file, now_addr, now_page->file.read_byte);
+
+			if(now_page->file.file_type & VM_MARKER_1) {
+				//마지막 페이지
+				vm_dealloc_page(now_page);
+				break;
+			}
+		}else {
+			// 로드가 되지 않은 파일.
+
+			if(now_page->uninit.type & VM_MARKER_1) {
+				//마지막 페이지
+				vm_dealloc_page(now_page);
+				break;
+			}
 		}
-
+		
 		vm_dealloc_page(now_page);
 
 		now_addr = addr + PGSIZE;
