@@ -3,6 +3,8 @@
 #include "vm/vm.h"
 #include "threads/vaddr.h"
 #include "include/userprog/process.h"
+#include "filesys/file.h"
+#include "threads/mmu.h"
 #include <round.h>
 
 static bool file_backed_swap_in (struct page *page, void *kva);
@@ -26,9 +28,13 @@ vm_file_init (void) {
 bool
 file_backed_initializer (struct page *page, enum vm_type type, void *kva) {
 	/* Set up the handler */
-	page->operations = &file_ops;
 
+	// 타입 캐싱
+	enum vm_type now_type = type;
+
+	page->operations = &file_ops;
 	struct file_page *file_page = &page->file;
+	file_page->file_type = now_type;
 }
 
 /* Swap in the page by read contents from the file. */
@@ -46,9 +52,16 @@ file_backed_swap_out (struct page *page) {
 /* Destory the file backed page. PAGE will be freed by the caller. */
 static void
 file_backed_destroy (struct page *page) {
+	struct thread *curr = thread_current();
 	struct file_page *file_page UNUSED = &page->file;
 
-	// free(page);
+	pml4_clear_page(curr->pml4, page->va);
+	hash_delete(&curr->spt.spth, &page->h_elem);
+
+	if(file_page->file_type & VM_MARKER_1) {
+		free(file_page->file_info->file);
+		free(page->file.file_info);
+	}
 }
 
 /* Do the mmap */
@@ -56,10 +69,9 @@ void *
 do_mmap (void *addr, size_t length, int writable, struct file *file, off_t offset) {
     void *now_addr = addr;
     size_t num_pages = DIV_ROUND_UP(length, PGSIZE);
+	file = file_reopen(file);
 
-	// printf("addr is %p\n\n", addr);
-
-	while (length > 0) {
+	for (size_t i = 0; i < num_pages; i++) {
 		size_t page_read_bytes = length < PGSIZE ? length : PGSIZE;
         size_t page_zero_bytes = PGSIZE - page_read_bytes;
 
@@ -70,10 +82,12 @@ do_mmap (void *addr, size_t length, int writable, struct file *file, off_t offse
         now_file->page_read_bytes = page_read_bytes;
         now_file->page_zero_bytes = page_zero_bytes;
         now_file->writable = writable;
+		now_file->ofs = offset;
 
         file_seek(now_file->file, offset);
 
-        if(!vm_alloc_page_with_initializer(VM_FILE, now_addr, writable, lazy_load_segment, now_file)) {
+		if(!vm_alloc_page_with_initializer(i == num_pages - 1 ? (VM_FILE | VM_MARKER_0) : VM_FILE , now_addr, writable, lazy_load_segment, now_file)) {
+			file_close(file);
 			free(now_file);
 			return NULL;
 		}
@@ -83,8 +97,6 @@ do_mmap (void *addr, size_t length, int writable, struct file *file, off_t offse
 
         now_addr += PGSIZE;
 	}
-
-	// printf("mmap page va is : %p\n\n", addr);
 
     return addr;
 }
@@ -96,19 +108,19 @@ do_munmap (void *addr) {
 	void *now_addr = addr;
 	struct page *now_page = spt_find_page(&curr->spt, now_addr);
 
-	printf("start now page is : %p\n\n" , now_page->va);
-	printf("start now addr is : %p\n\n" , now_addr);
+	while(now_page != NULL && VM_TYPE(now_page->operations->type) == VM_FILE && VM_TYPE(now_page->operations->type) == VM_UNINIT) {
+		file_seek(now_page->file.file_info->file, now_page->file.file_info->ofs);
+		off_t write_byte = file_write(now_page->file.file_info->file, now_addr, now_page->file.read_byte);
 
-	while(now_page != NULL && (VM_TYPE(now_page->operations->type) == VM_FILE)) {
-		file_write_at
-		
-		free(now_page->frame);
-		free(now_page);
+		if(now_page->file.file_type & VM_MARKER_0) {
+			// 해당 페이지가 마지막 페이지일 경우
+			vm_dealloc_page(now_page);
+			break;
+		}
 
-
-		printf("end now page is : %p\n\n" , now_page->va);
-		printf("end now addr is : %p\n\n" , now_addr);
+		vm_dealloc_page(now_page);
 
 		now_addr = addr + PGSIZE;
+		now_page = spt_find_page(&curr->spt, now_addr);
 	}
 }

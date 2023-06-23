@@ -822,7 +822,9 @@ lazy_load_segment (struct page *page, struct file_segment *aux) {
 
 				return false;
 			}else {
-				
+				page->file.file_info = aux;
+				page->file.read_byte = true_bytes;
+
 				memset (kpage + true_bytes, 0, PGSIZE - true_bytes);
 			}
 		}

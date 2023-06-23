@@ -6,7 +6,18 @@
 struct page;
 enum vm_type;
 
+struct file_segment {
+	struct file *file;
+	size_t page_read_bytes;
+	size_t page_zero_bytes;
+	bool writable;
+	off_t ofs;
+};
+
 struct file_page {
+	struct file_segment *file_info;
+	off_t read_byte;
+	enum vm_type file_type;
 };
 
 void vm_file_init (void);

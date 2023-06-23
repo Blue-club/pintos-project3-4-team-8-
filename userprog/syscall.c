@@ -387,20 +387,25 @@ void *mmap (void *addr, size_t length, int writable, int fd, off_t offset) {
 	if(!is_correct_pointer(addr)) {
 		return NULL;
 	}
+
+	if(!is_correct_pointer(addr + length)) {
+		return NULL;
+	}
 	
-	// fd가 0이나 1일 경우 mmap 실패
+	// fd가 0이나 1일 경우 실패
 	if(fd == 0 || fd == 1) {
 		return NULL;
 	}
 
+	// 페이지가 정렬되지 않은 경우 실패
 	if(addr != pg_round_down(addr)) {
 		return NULL;
 	}
 
-	// 해당 fd로 열린 파일의 길이가 0바이트 인 경우 mmap 호출 실패
-	if(filesize(fd) <= 0) {
+	// 매핑할 길이가 0 이면 실패
+	if(length == 0) {
 		return NULL;
-	}	
+	}
 
 	struct thread *curr = thread_current(); // 현재 스레드 정보.
 	struct file *now_file = curr->fdt[fd];  // 현재 파일 정보 가져옴.
