@@ -57,8 +57,8 @@ file_backed_destroy (struct page *page) {
 	hash_delete(&curr->spt.spth, &page->h_elem);
 
 	if(file_page->file_type & VM_MARKER_1) {
-		free(file_page->file_info->file);
-		free(page->file.file_info);
+		// free(file_page->file_info->file);
+		// free(page->file.file_info);
 	}
 }
 
@@ -120,8 +120,10 @@ do_munmap (void *addr) {
 			// 로드가 되어있는 파일. 
 
 			// 파일 overwrite
-			file_seek(now_page->file.file_info->file, now_page->file.file_info->ofs);
-			file_write(now_page->file.file_info->file, now_addr, now_page->file.read_byte);
+			if(now_page->file.file_info->ofs >= 0){
+				file_seek(now_page->file.file_info->file, now_page->file.file_info->ofs);
+				file_write(now_page->file.file_info->file, now_addr, now_page->file.read_byte);
+			}
 			// off_t write_byte = file_write(now_page->file.file_info->file, now_addr, now_page->file.read_byte);
 
 			if(now_page->file.file_type & VM_MARKER_1) {
