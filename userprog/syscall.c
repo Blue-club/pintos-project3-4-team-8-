@@ -273,8 +273,13 @@ int read (int fd, void *buffer, unsigned length) {
 
 	struct thread *curr = thread_current();
 	struct file *now_file = curr->fdt[fd];
+	struct page *now_page = spt_find_page(&curr->spt, pg_round_down(buffer));
 	char *ptr = buffer;
 	int size = 0;
+
+	if(now_page->writable == 0){
+		exit(-1);
+	}
 
 	if(now_file == 0) {
 		return -1;
@@ -384,11 +389,11 @@ void close (int fd) {
  * mmap
 */
 void *mmap (void *addr, size_t length, int writable, int fd, off_t offset) {
-	if(!is_correct_pointer(addr)) {
+	if(!is_correct_pointer(addr) || addr == NULL) {
 		return NULL;
 	}
 
-	if(!is_correct_pointer(addr + length)) {
+	if(!is_correct_pointer(addr + length) || (addr + length) == NULL) {
 		return NULL;
 	}
 	
@@ -413,6 +418,11 @@ void *mmap (void *addr, size_t length, int writable, int fd, off_t offset) {
 
 	struct thread *curr = thread_current(); // 현재 스레드 정보.
 	struct file *now_file = curr->fdt[fd];  // 현재 파일 정보 가져옴.
+
+	if(now_file == NULL) {
+		return NULL;
+	}
+
 	struct page *now_page = NULL;
 
 	if ((now_page = spt_find_page(&curr->spt, addr)) != NULL) {

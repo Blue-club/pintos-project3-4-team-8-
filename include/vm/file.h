@@ -10,7 +10,6 @@ struct file_segment {
 	struct file *file;
 	size_t page_read_bytes;
 	size_t page_zero_bytes;
-	bool writable;
 	off_t ofs;
 };
 

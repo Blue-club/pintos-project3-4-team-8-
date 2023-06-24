@@ -62,6 +62,7 @@ static void
 uninit_destroy (struct page *page) {
 	struct thread *curr = thread_current();
 	struct uninit_page *uninit UNUSED = &page->uninit;
+	struct file_segment *now_segment = uninit->aux;
 	/* TODO: Fill this function.
 	 * TODO: If you don't have anything to do, just return. */
 
@@ -69,8 +70,7 @@ uninit_destroy (struct page *page) {
 	hash_delete(&curr->spt.spth, &page->h_elem);		
 
 	if(page->uninit.type & VM_MARKER_1) {
-		struct file_segment *now_segment = uninit->aux;
-
 		// file_close(now_segment->file);
+		// free(now_segment->file);
 	}
 }

@@ -58,7 +58,11 @@ file_backed_destroy (struct page *page) {
 
 	if(file_page->file_type & VM_MARKER_1) {
 		// file_close(file_page->file_info->file);
+
+		// free(page->file.file_info->file);
 	}
+
+	// free(page->file.file_info);
 }
 
 /* Do the mmap */
@@ -78,9 +82,7 @@ do_mmap (void *addr, size_t length, int writable, struct file *file, off_t offse
 		memcpy(now_file->file, file, sizeof(struct file));
         now_file->page_read_bytes = page_read_bytes;
         now_file->page_zero_bytes = page_zero_bytes;
-        now_file->writable = writable;
 		now_file->ofs = offset;
-
 
         file_seek(now_file->file, offset);
 

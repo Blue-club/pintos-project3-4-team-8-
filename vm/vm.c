@@ -160,6 +160,8 @@ vm_evict_frame (void) {
 */
 static struct frame *
 vm_get_frame (void) {
+	// printf("page get frame\n\n");
+
 	struct frame *frame = malloc(sizeof(struct frame));
 
 	/* TODO: Fill this function. */
@@ -211,6 +213,7 @@ vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED, bool user U
 
 	page = spt_find_page(&spt->spth, addr);
 
+
 	if(page == NULL && (addr >= stack_bottom && addr <= stack_top)) {
 		if(addr < (f->rsp - (1 << 3)))
 			return false;
@@ -224,7 +227,16 @@ vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED, bool user U
 		return false;
 	}
 
-	return vm_do_claim_page (page);
+	if(not_present) {
+		page = spt_find_page(&spt->spth, addr);
+
+		if (page == NULL)
+			return false;
+
+		return vm_do_claim_page(page);
+	}
+
+	return false;
 }
 
 /* Free the page.
@@ -262,10 +274,9 @@ vm_do_claim_page (struct page *page) {
 	uint64_t n_pml4 = thread_current() -> pml4;
 	bool succ = pml4_set_page(n_pml4, page->va, frame->kva, page->writable);
 
-	if(!succ) {
-
-		return false;
-	}
+	// if(!succ) {
+	// 	return false;
+	// }
 
 	return swap_in (page, frame->kva);
 }
@@ -289,8 +300,15 @@ bool less_func (const struct hash_elem *a, const struct hash_elem *b, void *aux)
 }
 
 void destroy_func (struct hash_elem *e, void *aux) {
-	struct page *p = hash_entry(e, struct page, h_elem);
-	destroy(p);
+	struct thread *curr = thread_current();
+	struct page *now_page = hash_entry(e, struct page, h_elem);
+
+	if(VM_TYPE(now_page->operations->type) == VM_FILE && pml4_is_dirty(curr->pml4, now_page->va)) {
+		file_seek(now_page->file.file_info->file, now_page->file.file_info->ofs);
+		file_write(now_page->file.file_info->file, now_page->frame->kva, now_page->file.file_info->page_read_bytes);
+	}
+
+	destroy(now_page);
 };
 
 /* Initialize new supplemental page table */
@@ -327,7 +345,7 @@ supplemental_page_table_copy (struct supplemental_page_table *dst, struct supple
 			succ = vm_alloc_page_with_initializer(VM_ANON, now_page->va, now_page->writable, now_page->uninit.init, now_page->uninit.aux);
 			continue;
 		}else {
-			if (!vm_alloc_page_with_initializer(VM_TYPE(now_page->operations->type), now_page->va, now_page->writable, NULL, NULL)) {
+			if (!vm_alloc_page_with_initializer(VM_TYPE(now_page->operations->type), now_page->va, now_page->writable, NULL, VM_TYPE(now_page->operations->type) == VM_FILE ? now_page->file.file_info : NULL)) {
 				return false;
 			}
 		}

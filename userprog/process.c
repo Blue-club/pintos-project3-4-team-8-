@@ -816,7 +816,7 @@ lazy_load_segment (struct page *page, struct file_segment *aux) {
 	}else if(VM_TYPE(page->operations->type) == VM_FILE) {
 		off_t true_bytes = file_read(aux->file, kpage, aux->page_read_bytes);
 
-		if (true_bytes < (int) aux -> page_read_bytes) {
+		if (true_bytes <= (int) aux -> page_read_bytes) {
 			if (true_bytes == 0 && aux->page_read_bytes != 0) {
 				palloc_free_page (kpage);
 
@@ -824,12 +824,11 @@ lazy_load_segment (struct page *page, struct file_segment *aux) {
 			}else {
 				page->file.file_info = aux;
 				page->file.read_byte = true_bytes;
-				
+
 				memset (kpage + true_bytes, 0, PGSIZE - true_bytes);
 			}
 		}
 	}
-
 
 	return true;
 }
@@ -872,7 +871,8 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage, uint32_t read_bytes,
 		memcpy(now_file->file, file, sizeof(struct file));
 		now_file->page_read_bytes = page_read_bytes;
 		now_file->page_zero_bytes = page_zero_bytes;
-		now_file->writable = writable;
+		now_file->ofs = ofs;
+		// now_file->writable = writable;
 
 		file_seek(now_file->file, ofs);
 
