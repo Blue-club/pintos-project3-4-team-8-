@@ -407,6 +407,10 @@ void *mmap (void *addr, size_t length, int writable, int fd, off_t offset) {
 		return NULL;
 	}
 
+	if(length < offset) {
+		return NULL;
+	}
+
 	struct thread *curr = thread_current(); // 현재 스레드 정보.
 	struct file *now_file = curr->fdt[fd];  // 현재 파일 정보 가져옴.
 	struct page *now_page = NULL;

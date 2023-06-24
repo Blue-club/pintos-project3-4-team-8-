@@ -72,8 +72,8 @@ vm_alloc_page_with_initializer (enum vm_type type, void *upage, bool writable, v
 
 		uninit_new(new_page, upage, init, type, aux, now_init);
 
-		/* TODO: Insert the page into the spt. */
 		new_page->writable = writable; 
+		/* TODO: Insert the page into the spt. */
 		hash_insert(&spt->spth, &new_page->h_elem);	
 
 		return true;
@@ -221,7 +221,6 @@ vm_try_handle_fault (struct intr_frame *f UNUSED, void *addr UNUSED, bool user U
 	}
 
 	if(page == NULL) {
-		
 		return false;
 	}
 

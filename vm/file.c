@@ -57,8 +57,7 @@ file_backed_destroy (struct page *page) {
 	hash_delete(&curr->spt.spth, &page->h_elem);
 
 	if(file_page->file_type & VM_MARKER_1) {
-		// free(file_page->file_info->file);
-		// free(page->file.file_info);
+		// file_close(file_page->file_info->file);
 	}
 }
 
@@ -82,8 +81,8 @@ do_mmap (void *addr, size_t length, int writable, struct file *file, off_t offse
         now_file->writable = writable;
 		now_file->ofs = offset;
 
-        file_seek(now_file->file, offset);
 
+        file_seek(now_file->file, offset);
 
 		if(i == num_pages - 1) {
 			if(!vm_alloc_page_with_initializer(VM_FILE | VM_MARKER_1, now_addr, writable, lazy_load_segment, now_file)) {
@@ -119,12 +118,11 @@ do_munmap (void *addr) {
 		if(VM_TYPE(now_page->operations->type) == VM_FILE) {
 			// 로드가 되어있는 파일. 
 
-			// 파일 overwrite
-			if(now_page->file.file_info->ofs >= 0){
+			// 파일 overwrite (더티 비트를 이용해서 수정이 된 경우에만 overwrite함)
+			if(pml4_is_dirty(curr->pml4, now_page->va)) {
 				file_seek(now_page->file.file_info->file, now_page->file.file_info->ofs);
-				file_write(now_page->file.file_info->file, now_addr, now_page->file.read_byte);
+				file_write(now_page->file.file_info->file, now_addr, now_page->file.file_info->page_read_bytes);
 			}
-			// off_t write_byte = file_write(now_page->file.file_info->file, now_addr, now_page->file.read_byte);
 
 			if(now_page->file.file_type & VM_MARKER_1) {
 				//마지막 페이지
