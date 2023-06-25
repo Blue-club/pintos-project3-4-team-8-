@@ -71,6 +71,7 @@ uninit_destroy (struct page *page) {
 
 	if(page->uninit.type & VM_MARKER_1) {
 		// file_close(now_segment->file);
-		// free(now_segment->file);
 	}
+
+	// free(now_segment->file);
 }

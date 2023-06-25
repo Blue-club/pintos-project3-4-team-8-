@@ -39,12 +39,34 @@ file_backed_initializer (struct page *page, enum vm_type type, void *kva) {
 static bool
 file_backed_swap_in (struct page *page, void *kva) {
 	struct file_page *file_page UNUSED = &page->file;
+
+	struct file_segment *now_segment = page->uninit.aux;
+	struct file *file = now_segment->file;
+	
+
+	file_seek(file, now_segment->ofs);
+	if(file_read(file, kva, now_segment->page_read_bytes) != (int) now_segment->page_read_bytes) {
+		return false;
+	}
+
+	memset(kva + now_segment->page_read_bytes, 0, now_segment->page_zero_bytes);
 }
 
 /* Swap out the page by writeback contents to the file. */
 static bool
 file_backed_swap_out (struct page *page) {
+	struct thread *curr = thread_current();
 	struct file_page *file_page UNUSED = &page->file;
+
+	if(pml4_is_dirty(curr->pml4, &page->frame->kva)) {
+		file_seek(page->file.file_info->file, page->file.file_info->ofs);
+		file_write(page->file.file_info->file, &page->frame->kva, page->file.file_info->page_read_bytes);
+		pml4_set_dirty(curr->pml4, page->va, 0);
+	}
+
+	page->frame = NULL;
+
+	return true;
 }
 
 /* Destory the file backed page. PAGE will be freed by the caller. */
@@ -58,7 +80,6 @@ file_backed_destroy (struct page *page) {
 
 	if(file_page->file_type & VM_MARKER_1) {
 		// file_close(file_page->file_info->file);
-
 		// free(page->file.file_info->file);
 	}
 
@@ -124,6 +145,7 @@ do_munmap (void *addr) {
 			if(pml4_is_dirty(curr->pml4, now_page->va)) {
 				file_seek(now_page->file.file_info->file, now_page->file.file_info->ofs);
 				file_write(now_page->file.file_info->file, now_addr, now_page->file.file_info->page_read_bytes);
+				pml4_set_dirty(curr->pml4, now_page->va, 0);
 			}
 
 			if(now_page->file.file_type & VM_MARKER_1) {

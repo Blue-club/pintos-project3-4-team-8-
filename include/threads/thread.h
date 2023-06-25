@@ -119,6 +119,7 @@ struct thread {
 	/* Table for whole virtual memory owned by thread. */
 	struct supplemental_page_table spt;
 	uintptr_t n_rsp;
+	struct list lru_list;
 #endif
 	/* Owned by thread.c. */
 	struct intr_frame tf;               /* Information for switching */
